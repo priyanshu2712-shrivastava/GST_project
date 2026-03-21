@@ -101,6 +101,17 @@ def process_bill(bill_id: int, db: Session = Depends(get_db)):
         bill.ai_confidence = ai_result.confidence
         bill.ai_reasoning = ai_result.reasoning
 
+        # Extract invoice details from AI
+        bill.vendor_name = ai_result.vendor_name
+        bill.vendor_gstin = ai_result.vendor_gstin
+        bill.invoice_number = ai_result.invoice_number
+        if ai_result.invoice_date:
+            try:
+                bill.invoice_date = datetime.strptime(ai_result.invoice_date.strip()[:10], "%Y-%m-%d")
+            except ValueError:
+                pass
+        bill.total_amount = ai_result.total_amount
+
         # Audit: Record AI classification
         db.add(AuditLog(
             bill_id=bill.id,

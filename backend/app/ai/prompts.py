@@ -39,6 +39,11 @@ INVOICE TEXT:
 
 OUTPUT FORMAT (JSON only, no markdown, no explanation outside JSON):
 {{
+    "vendor_name": "<string or null>",
+    "vendor_gstin": "<string or null>",
+    "invoice_number": "<string or null>",
+    "invoice_date": "<YYYY-MM-DD or null>",
+    "total_amount": <float or 0.0>,
     "category": "<one of: office_supplies, raw_materials, trading_goods, capital_goods, professional_services, utilities, rent, travel, food_beverages, medical_supplies, personal_expense, vehicle_expense, communication, insurance, repairs_maintenance, marketing, unclassified>",
     "sub_category": "<specific sub-type, e.g. 'printer_paper', 'diesel', 'consulting_fees'>",
     "confidence": <float between 0.0 and 1.0>,

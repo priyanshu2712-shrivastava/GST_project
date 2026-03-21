@@ -41,6 +41,12 @@ class AIClassificationResult(BaseModel):
     sub_category: str = Field(default="general", description="Sub-category for finer classification")
     confidence: float = Field(ge=0.0, le=1.0, description="How confident the AI is (0-1)")
     reasoning: str = Field(description="Why the AI chose this category")
+    
+    vendor_name: Optional[str] = None
+    vendor_gstin: Optional[str] = None
+    invoice_number: Optional[str] = None
+    invoice_date: Optional[str] = None
+    total_amount: float = Field(default=0.0)
 
 
 # --------------------

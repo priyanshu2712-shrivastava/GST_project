@@ -23,6 +23,8 @@ engine = create_engine(
     settings.DATABASE_URL,
     connect_args=connect_args,
     echo=False,  # Set True for SQL debug logging
+    pool_pre_ping=True,  # Test connections before use — reconnects stale ones
+    pool_recycle=300,  # Recycle connections every 5 min (Neon closes idle ones)
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

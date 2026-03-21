@@ -25,6 +25,9 @@ import json
 import os
 from typing import Optional
 
+from dotenv import load_dotenv
+load_dotenv()
+
 from app.config import settings
 from app.schemas import AIClassificationResult
 from app.ai.prompts import CLASSIFICATION_PROMPT, FALLBACK_CLASSIFICATION
@@ -67,10 +70,10 @@ def classify_expense(ocr_text: str) -> AIClassificationResult:
         # temperature=0.1 for consistency — we want the same bill
         # to always get the same classification
         llm = ChatGoogleGenerativeAI(
-            model="gemini-2.0-flash",
-            google_api_key=settings.GOOGLE_API_KEY,
+            model="gemini-2.5-flash",
+            google_api_key=os.getenv("GOOGLE_API_KEY", settings.GOOGLE_API_KEY),
             temperature=0.1,
-            max_output_tokens=500,  # Classification is short
+            max_output_tokens=1500,  # Increased to prevent JSON truncation
         )
 
         # Build the prompt with business context
@@ -80,18 +83,24 @@ def classify_expense(ocr_text: str) -> AIClassificationResult:
             ocr_text=ocr_text[:3000]  # Limit input to avoid token overflow
         )
 
+        print("-" * 50)
+        print(f"[CLASSIFIER INPUT to Gemini]:\n{formatted_prompt}")
+        print("-" * 50)
+
         # Invoke the chain
         response = llm.invoke([HumanMessage(content=formatted_prompt)])
 
         # Parse the JSON response
         response_text = response.content.strip()
 
+        print("-" * 50)
+        print(f"[CLASSIFIER OUTPUT from Gemini]:\n{response_text}")
+        print("-" * 50)
+
         # Handle markdown-wrapped JSON (some models wrap in ```json ... ```)
-        if response_text.startswith("```"):
-            response_text = response_text.split("```")[1]
-            if response_text.startswith("json"):
-                response_text = response_text[4:]
-            response_text = response_text.strip()
+        import re
+        response_text = re.sub(r"^```(?:json)?\s*", "", response_text, flags=re.IGNORECASE)
+        response_text = re.sub(r"\s*```$", "", response_text)
 
         result = json.loads(response_text)
 
@@ -100,7 +109,12 @@ def classify_expense(ocr_text: str) -> AIClassificationResult:
             category=result.get("category", "unclassified"),
             sub_category=result.get("sub_category", "general"),
             confidence=float(result.get("confidence", 0.5)),
-            reasoning=result.get("reasoning", "No reasoning provided")
+            reasoning=result.get("reasoning", "No reasoning provided"),
+            vendor_name=result.get("vendor_name"),
+            vendor_gstin=result.get("vendor_gstin"),
+            invoice_number=result.get("invoice_number"),
+            invoice_date=result.get("invoice_date"),
+            total_amount=float(result.get("total_amount", 0.0) or 0.0)
         )
 
     except json.JSONDecodeError as e:

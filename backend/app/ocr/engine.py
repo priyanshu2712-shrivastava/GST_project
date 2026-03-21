@@ -7,141 +7,153 @@ DESIGN PRINCIPLE: This module does ONE thing — extract text.
 It does NOT interpret, classify, or make any decisions.
 All intelligence lives in the AI and Rule Engine layers.
 
-APPROACH: Uses Google Gemini Vision API to extract text from images.
-This avoids needing the Tesseract binary installed on the system.
-Falls back to pytesseract if Gemini fails or API key is not set.
+APPROACH: Uses Tesseract OCR (local, offline, no API quota issues) as
+the PRIMARY method. Falls back to Gemini Vision API only if Tesseract
+fails. This saves API quota for the AI classification step.
 
-For PDFs: Uses PyMuPDF (fitz) to extract embedded text or convert pages to images.
+For PDFs: Uses PyMuPDF (fitz) to extract embedded text, or converts
+pages to images and runs Tesseract on each page.
 """
 
 import os
-import base64
-import json
 from pathlib import Path
 from typing import Optional
 
 from app.config import settings
 
 
-def _extract_text_with_gemini_vision(image_path: str) -> Optional[str]:
-    """
-    Use Gemini Vision API to extract text from an image.
-    This is the PRIMARY OCR method — no external binary needed.
-    """
-    if not settings.GOOGLE_API_KEY or settings.GOOGLE_API_KEY == "your_gemini_api_key_here":
-        return None
-
-    try:
-        from langchain_google_genai import ChatGoogleGenerativeAI
-        from langchain_core.messages import HumanMessage
-
-        # Read and encode image as base64
-        with open(image_path, "rb") as f:
-            image_data = base64.b64encode(f.read()).decode("utf-8")
-
-        # Detect MIME type
-        ext = Path(image_path).suffix.lower()
-        mime_map = {
-            ".jpg": "image/jpeg",
-            ".jpeg": "image/jpeg",
-            ".png": "image/png",
-            ".bmp": "image/bmp",
-            ".tiff": "image/tiff",
-            ".tif": "image/tiff",
-            ".webp": "image/webp",
-        }
-        mime_type = mime_map.get(ext, "image/jpeg")
-
-        llm = ChatGoogleGenerativeAI(
-            model="gemini-2.0-flash",
-            google_api_key=settings.GOOGLE_API_KEY,
-            temperature=0.0,
-        )
-
-        message = HumanMessage(
-            content=[
-                {
-                    "type": "text",
-                    "text": (
-                        "Extract ALL text from this invoice/bill image exactly as it appears. "
-                        "Include every detail: vendor name, GSTIN, invoice number, date, "
-                        "line items, quantities, amounts, tax details (CGST, SGST, IGST), "
-                        "and total amount. Preserve the layout structure as much as possible. "
-                        "Return ONLY the extracted text, nothing else."
-                    ),
-                },
-                {
-                    "type": "image_url",
-                    "image_url": {
-                        "url": f"data:{mime_type};base64,{image_data}"
-                    },
-                },
-            ]
-        )
-
-        response = llm.invoke([message])
-        text = response.content.strip()
-
-        if text and len(text) > 10:
-            return text
-
-        return None
-
-    except Exception as e:
-        print(f"[OCR] Gemini Vision failed: {e}")
-        return None
+# ─── Tesseract Configuration ───────────────────────────────────────────────
+# Point pytesseract to the installed Tesseract binary
+TESSERACT_PATH = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
 
 def _extract_text_with_tesseract(image_path: str) -> Optional[str]:
     """
-    Fallback: Use Tesseract for OCR if Gemini Vision is unavailable.
-    Requires tesseract binary to be installed on the system.
+    PRIMARY OCR method: Use Tesseract to extract text from an image.
+    Offline, free, no API quota — works on any invoice.
     """
     try:
         import pytesseract
         from PIL import Image, ImageFilter, ImageEnhance
 
-        image = Image.open(image_path)
+        # Set Tesseract binary path
+        if os.path.exists(TESSERACT_PATH):
+            pytesseract.pytesseract.tesseract_cmd = TESSERACT_PATH
 
-        # Preprocess: grayscale → contrast → sharpen
+        image = Image.open(image_path)
+        print(f"[OCR] Using Tesseract for: {image_path}")
+        print(f"[OCR] Image size: {image.size}, mode: {image.mode}")
+
+        # Preprocess for better OCR accuracy:
+        # 1. Convert to grayscale
         gray = image.convert("L")
+        # 2. Increase contrast (makes text stand out)
         enhanced = ImageEnhance.Contrast(gray).enhance(2.0)
+        # 3. Sharpen edges
         sharpened = enhanced.filter(ImageFilter.SHARPEN)
 
+        # OCR with optimized config:
+        # --oem 3 = LSTM neural net engine (best accuracy)
+        # --psm 6 = Assume uniform block of text (good for invoices)
         custom_config = r"--oem 3 --psm 6"
         text = pytesseract.image_to_string(sharpened, config=custom_config)
-        return text.strip() if text.strip() else None
+
+        if text and text.strip():
+            print(f"[OCR] Tesseract extracted {len(text.strip())} characters")
+            return text.strip()
+
+        print("[OCR] Tesseract returned empty text")
+        return None
 
     except Exception as e:
-        print(f"[OCR] Tesseract fallback failed: {e}")
+        print(f"[OCR] Tesseract failed: {type(e).__name__}: {e}")
+        return None
+
+
+def _extract_text_with_gemini_vision(image_path: str) -> Optional[str]:
+    """
+    FALLBACK OCR method: Use Gemini Vision API if Tesseract fails.
+    Only used as a backup — saves API quota for classification.
+    """
+    if not settings.GOOGLE_API_KEY or settings.GOOGLE_API_KEY == "your_gemini_api_key_here":
+        print("[OCR] No GOOGLE_API_KEY set, skipping Gemini Vision fallback")
+        return None
+
+    try:
+        import time
+        import google.generativeai as genai
+        from PIL import Image
+
+        print(f"[OCR] Falling back to Gemini Vision for: {image_path}")
+        genai.configure(api_key=settings.GOOGLE_API_KEY)
+
+        img = Image.open(image_path)
+        model = genai.GenerativeModel("gemini-2.5-flash")
+
+        prompt = (
+            "Extract ALL text from this invoice/bill image exactly as it appears. "
+            "Include every detail: vendor name, GSTIN, invoice number, date, "
+            "line items, quantities, amounts, tax details (CGST, SGST, IGST), "
+            "and total amount. Preserve the layout structure as much as possible. "
+            "Return ONLY the extracted text, nothing else."
+        )
+
+        # Retry up to 3 times for rate limit errors (free tier)
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = model.generate_content(
+                    [prompt, img],
+                    request_options={"timeout": 60},
+                )
+                text = response.text.strip()
+                print(f"[OCR] Gemini Vision extracted {len(text)} characters")
+
+                if text and len(text) > 10:
+                    return text
+                return None
+
+            except Exception as retry_err:
+                err_str = str(retry_err).lower()
+                if ("429" in err_str or "resource" in err_str or "quota" in err_str) and attempt < max_retries - 1:
+                    wait_time = 30 * (attempt + 1)
+                    print(f"[OCR] Rate limited (attempt {attempt+1}/{max_retries}), waiting {wait_time}s...")
+                    time.sleep(wait_time)
+                else:
+                    raise
+
+        return None
+
+    except Exception as e:
+        print(f"[OCR] Gemini Vision fallback failed: {type(e).__name__}: {e}")
         return None
 
 
 def extract_text_from_image(image_path: str) -> str:
     """
     Extract text from an image file.
-    Strategy: Try Gemini Vision first (no binary needed), fall back to Tesseract.
+    Strategy: Tesseract FIRST (offline, free), Gemini Vision as fallback.
     """
     if not os.path.exists(image_path):
         return f"[OCR Error] File not found: {image_path}"
 
-    # Try Gemini Vision first (works without any binary install)
-    text = _extract_text_with_gemini_vision(image_path)
-    if text:
-        return text
-
-    # Fallback to Tesseract
+    # PRIMARY: Tesseract (offline, no API quota used)
     text = _extract_text_with_tesseract(image_path)
     if text:
         return text
 
-    return "[OCR Error] Could not extract text. Ensure GOOGLE_API_KEY is set or install Tesseract binary."
+    # FALLBACK: Gemini Vision (only if Tesseract fails)
+    text = _extract_text_with_gemini_vision(image_path)
+    if text:
+        return text
+
+    return "[OCR Error] Could not extract text. Ensure Tesseract is installed or GOOGLE_API_KEY is set."
 
 
 def extract_text_from_pdf(pdf_path: str) -> str:
     """
     Extract text from a PDF.
-    Strategy: Try PyMuPDF for text extraction first, then Gemini Vision for scanned PDFs.
+    Strategy: PyMuPDF for embedded text → Tesseract for scanned pages.
     """
     if not os.path.exists(pdf_path):
         return f"[OCR Error] File not found: {pdf_path}"
@@ -160,30 +172,30 @@ def extract_text_from_pdf(pdf_path: str) -> str:
 
         if all_text:
             combined = "\n\n".join(all_text)
-            if len(combined) > 20:  # Got meaningful text
+            if len(combined) > 20:
                 return combined
     except ImportError:
-        pass  # PyMuPDF not installed
+        pass
     except Exception as e:
         print(f"[OCR] PyMuPDF failed: {e}")
 
-    # For scanned PDFs: convert pages to images and use Gemini Vision
+    # For scanned PDFs: convert pages to images and use Tesseract
     try:
-        from pdf2image import convert_from_path
-        pages = convert_from_path(pdf_path, dpi=200, first_page=1, last_page=5)  # Limit pages
-        all_text = []
         import tempfile
+        from pdf2image import convert_from_path
+
+        pages = convert_from_path(pdf_path, dpi=200, first_page=1, last_page=5)
+        all_text = []
 
         for i, page_img in enumerate(pages, 1):
-            # Save page as temporary image
             tmp_path = os.path.join(tempfile.gettempdir(), f"gst_pdf_page_{i}.jpg")
             page_img.save(tmp_path, "JPEG", quality=85)
 
-            text = _extract_text_with_gemini_vision(tmp_path)
+            # Use Tesseract for each page (no API calls!)
+            text = _extract_text_with_tesseract(tmp_path)
             if text:
                 all_text.append(f"--- Page {i} ---\n{text}")
 
-            # Clean up
             try:
                 os.remove(tmp_path)
             except:
@@ -196,7 +208,7 @@ def extract_text_from_pdf(pdf_path: str) -> str:
     except Exception as e:
         print(f"[OCR] PDF image conversion failed: {e}")
 
-    return "[OCR Error] Could not extract text from PDF. Ensure GOOGLE_API_KEY is set."
+    return "[OCR Error] Could not extract text from PDF."
 
 
 def extract_text(file_path: str) -> str:
