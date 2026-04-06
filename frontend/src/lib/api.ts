@@ -3,9 +3,12 @@
  * ==================
  * Typed fetch wrapper for all backend endpoints.
  * Centralizes API calls so every page uses the same pattern.
- * 
+ *
  * Base URL points to FastAPI backend on port 8000.
+ * All protected endpoints send 'Authorization: Bearer <token>'.
  */
+
+import { getToken, getAuthHeaders, getAuthHeadersForUpload } from "./auth";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -110,13 +113,81 @@ export interface RiskFlag {
   recommendation: string;
 }
 
-// ---------- API Functions ----------
+export interface Company {
+  id: number;
+  company_name: string;
+  email: string;
+  gstin: string | null;
+  business_type: string;
+  business_description: string;
+  address: string | null;
+  phone: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TokenResponse {
+  access_token: string;
+  token_type: string;
+  company_id: number;
+  company_name: string;
+  email: string;
+  business_type: string;
+}
+
+// ---------- Auth API ----------
+
+export async function loginCompany(email: string, password: string): Promise<TokenResponse> {
+  const res = await fetch(`${API_BASE}/api/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Login failed" }));
+    throw new Error(err.detail || "Login failed");
+  }
+  return res.json();
+}
+
+export async function registerCompanyAuth(data: {
+  company_name: string;
+  email: string;
+  password: string;
+  business_type: string;
+  business_description: string;
+  gstin?: string;
+  address?: string;
+  phone?: string;
+}): Promise<TokenResponse> {
+  const res = await fetch(`${API_BASE}/api/auth/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Registration failed" }));
+    throw new Error(err.detail || "Registration failed");
+  }
+  return res.json();
+}
+
+export async function getMe(): Promise<Company> {
+  const res = await fetch(`${API_BASE}/api/auth/me`, {
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) throw new Error("Not authenticated");
+  return res.json();
+}
+
+// ---------- Bill API (auth required) ----------
 
 export async function uploadBill(file: File): Promise<UploadResponse> {
   const formData = new FormData();
   formData.append("file", file);
   const res = await fetch(`${API_BASE}/api/bills/upload`, {
     method: "POST",
+    headers: getAuthHeadersForUpload(),
     body: formData,
   });
   if (!res.ok) throw new Error(await res.text());
@@ -128,6 +199,7 @@ export async function uploadBillsBulk(files: File[]): Promise<{ uploaded: Upload
   files.forEach((f) => formData.append("files", f));
   const res = await fetch(`${API_BASE}/api/bills/upload-bulk`, {
     method: "POST",
+    headers: getAuthHeadersForUpload(),
     body: formData,
   });
   if (!res.ok) throw new Error(await res.text());
@@ -135,13 +207,18 @@ export async function uploadBillsBulk(files: File[]): Promise<{ uploaded: Upload
 }
 
 export async function processBill(billId: number): Promise<Bill> {
-  const res = await fetch(`${API_BASE}/api/bills/${billId}/process`, { method: "POST" });
+  const res = await fetch(`${API_BASE}/api/bills/${billId}/process`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+  });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
 
 export async function getBill(billId: number): Promise<Bill> {
-  const res = await fetch(`${API_BASE}/api/bills/${billId}`);
+  const res = await fetch(`${API_BASE}/api/bills/${billId}`, {
+    headers: getAuthHeaders(),
+  });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
@@ -159,27 +236,77 @@ export async function listBills(params?: {
   if (params?.year) query.set("year", String(params.year));
   if (params?.page) query.set("page", String(params.page));
   if (params?.per_page) query.set("per_page", String(params.per_page));
-  const res = await fetch(`${API_BASE}/api/bills/?${query.toString()}`);
+  const res = await fetch(`${API_BASE}/api/bills/?${query.toString()}`, {
+    headers: getAuthHeaders(),
+  });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
 
 export async function getMonthlySummary(month: number, year: number): Promise<MonthlySummary> {
-  const res = await fetch(`${API_BASE}/api/summary/monthly?month=${month}&year=${year}`);
+  const res = await fetch(`${API_BASE}/api/summary/monthly?month=${month}&year=${year}`, {
+    headers: getAuthHeaders(),
+  });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
 
 export function getExcelDownloadUrl(month: number, year: number): string {
-  return `${API_BASE}/api/export/excel?month=${month}&year=${year}`;
+  const token = getToken();
+  // Token is passed as query param for direct download links
+  return `${API_BASE}/api/export/excel?month=${month}&year=${year}&token=${token}`;
 }
 
 export function getTallyXmlDownloadUrl(month: number, year: number): string {
-  return `${API_BASE}/api/export/tally-xml?month=${month}&year=${year}`;
+  const token = getToken();
+  return `${API_BASE}/api/export/tally-xml?month=${month}&year=${year}&token=${token}`;
+}
+
+export async function getExcelBlob(month: number, year: number): Promise<Blob> {
+  const res = await fetch(`${API_BASE}/api/export/excel?month=${month}&year=${year}`, {
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) throw new Error("Export failed");
+  return res.blob();
+}
+
+export async function getTallyXmlBlob(month: number, year: number): Promise<Blob> {
+  const res = await fetch(`${API_BASE}/api/export/tally-xml?month=${month}&year=${year}`, {
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) throw new Error("Export failed");
+  return res.blob();
 }
 
 export async function getHealth(): Promise<HealthResponse> {
   const res = await fetch(`${API_BASE}/api/health`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+// ---------- Company Profile (auth required) ----------
+
+export async function getCompany(): Promise<Company> {
+  const res = await fetch(`${API_BASE}/api/company/`, {
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function updateCompany(data: {
+  company_name: string;
+  business_type: string;
+  business_description: string;
+  gstin?: string;
+  address?: string;
+  phone?: string;
+}): Promise<Company> {
+  const res = await fetch(`${API_BASE}/api/company/`, {
+    method: "PUT",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(data),
+  });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }

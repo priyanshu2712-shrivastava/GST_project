@@ -1,0 +1,6 @@
+```json
+{
+    "vendor_name": "SUNRISE ENTERPRISE",
+    "vendor_gstin": "07BGUPD3647XXXX",
+    "invoice_number": "Inv-5",
+    "invoice_date": null,

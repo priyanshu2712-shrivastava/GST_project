@@ -25,6 +25,35 @@ import enum
 from app.database import Base
 
 
+class Company(Base):
+    """
+    Registered company / business profile.
+    Each company is a separate tenant — bills are scoped per company.
+    Auth: email + hashed password for login.
+    """
+    __tablename__ = "company"
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_name = Column(String(255), nullable=False)
+    gstin = Column(String(15))           # Company's own GSTIN
+    business_type = Column(String(100), nullable=False)
+    business_description = Column(Text, nullable=False)
+    address = Column(Text)
+    phone = Column(String(20))
+    email = Column(String(255), unique=True, nullable=False, index=True)
+
+    # Auth
+    password_hash = Column(String(255), nullable=False)
+    is_active = Column(Boolean, default=True)
+
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
+                        onupdate=lambda: datetime.now(timezone.utc))
+
+    # Relationship back to bills
+    bills = relationship("Bill", back_populates="company", cascade="all, delete-orphan")
+
+
 class BillStatus(str, enum.Enum):
     """Lifecycle of a bill through the system."""
     PENDING = "pending"           # Uploaded, not yet processed
@@ -38,10 +67,14 @@ class Bill(Base):
     """
     Core invoice record.
     One bill = one uploaded file (image/PDF).
+    Scoped to a company via company_id — multi-tenant isolation.
     """
     __tablename__ = "bills"
 
     id = Column(Integer, primary_key=True, index=True)
+
+    # --- Tenant ---
+    company_id = Column(Integer, ForeignKey("company.id"), nullable=False, index=True)
 
     # --- File Info ---
     file_name = Column(String(255), nullable=False)
@@ -53,6 +86,16 @@ class Bill(Base):
     vendor_gstin = Column(String(15))  # 15-char GSTIN
     invoice_number = Column(String(100))
     invoice_date = Column(DateTime)
+
+    # --- Buyer Info (extracted by AI) ---
+    buyer_name = Column(String(255))
+    buyer_gstin = Column(String(15))
+    buyer_address = Column(Text)
+    payment_mode = Column(String(50))      # UPI, Cash, Bank Transfer, etc.
+    place_of_supply = Column(String(100))
+    reverse_charge = Column(Boolean, default=False)
+    supplier_ref = Column(String(100))
+    buyer_order_no = Column(String(100))
 
     # --- Financials ---
     subtotal = Column(Float, default=0.0)
@@ -89,6 +132,7 @@ class Bill(Base):
                         onupdate=lambda: datetime.now(timezone.utc))
 
     # --- Relationships ---
+    company = relationship("Company", back_populates="bills")
     line_items = relationship("BillLineItem", back_populates="bill", cascade="all, delete-orphan")
     audit_logs = relationship("AuditLog", back_populates="bill", cascade="all, delete-orphan")
 

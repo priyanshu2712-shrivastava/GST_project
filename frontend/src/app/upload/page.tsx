@@ -5,8 +5,9 @@ import { uploadBill, uploadBillsBulk, processBill } from "@/lib/api";
 import type { UploadResponse } from "@/lib/api";
 import { StatusBadge } from "@/components/UIComponents";
 import Link from "next/link";
+import ProtectedRoute from "@/components/ProtectedRoute";
 
-export default function UploadPage() {
+function UploadContent() {
     const [dragActive, setDragActive] = useState(false);
     const [uploads, setUploads] = useState<(UploadResponse & { processing?: boolean; processed?: boolean })[]>([]);
     const [uploading, setUploading] = useState(false);
@@ -166,5 +167,13 @@ export default function UploadPage() {
                 </div>
             )}
         </div>
+    );
+}
+
+export default function UploadPage() {
+    return (
+        <ProtectedRoute>
+            <UploadContent />
+        </ProtectedRoute>
     );
 }

@@ -29,7 +29,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import extract
 
 from app.database import get_db
-from app.models import Bill, BillStatus, AuditLog
+from app.models import Bill, BillStatus, AuditLog, Company
 from app.schemas import BillResponse, BillListResponse, MonthlySummary
 from app.ocr.engine import extract_text
 from app.ai.classifier import classify_expense
@@ -37,26 +37,23 @@ from app.rules.gst_engine import get_gst_details
 from app.rules.itc_engine import check_itc_eligibility
 from app.rules.risk_flags import detect_risk_flags, flags_to_json
 from app.config import settings
+from app.auth import get_current_company
 
 router = APIRouter(tags=["Processing"])
 
 
 @router.post("/api/bills/{bill_id}/process", response_model=BillResponse)
-def process_bill(bill_id: int, db: Session = Depends(get_db)):
+def process_bill(
+    bill_id: int,
+    db: Session = Depends(get_db),
+    current_company: Company = Depends(get_current_company),
+):
     """
     Trigger the full processing pipeline for an uploaded bill.
-
-    Pipeline:
-    1. OCR → Extract raw text
-    2. AI → Classify expense (LangChain + Gemini)
-    3. Rules → GST rate + ITC eligibility (deterministic Python)
-    4. Risk → Detect compliance flags
-    5. Store → Save all decisions with audit trail
-
-    The AI SUGGESTS; the rule engine DECIDES.
+    Only the company that owns the bill can process it.
     """
-    # Fetch the bill
-    bill = db.query(Bill).filter(Bill.id == bill_id).first()
+    # Fetch the bill — scoped to this company
+    bill = db.query(Bill).filter(Bill.id == bill_id, Bill.company_id == current_company.id).first()
     if not bill:
         raise HTTPException(status_code=404, detail=f"Bill not found: {bill_id}")
 
@@ -101,7 +98,7 @@ def process_bill(bill_id: int, db: Session = Depends(get_db)):
         bill.ai_confidence = ai_result.confidence
         bill.ai_reasoning = ai_result.reasoning
 
-        # Extract invoice details from AI
+        # Save all extracted invoice fields
         bill.vendor_name = ai_result.vendor_name
         bill.vendor_gstin = ai_result.vendor_gstin
         bill.invoice_number = ai_result.invoice_number
@@ -110,6 +107,18 @@ def process_bill(bill_id: int, db: Session = Depends(get_db)):
                 bill.invoice_date = datetime.strptime(ai_result.invoice_date.strip()[:10], "%Y-%m-%d")
             except ValueError:
                 pass
+
+        # Save buyer info
+        bill.buyer_name = ai_result.buyer_name
+        bill.buyer_gstin = ai_result.buyer_gstin
+        bill.buyer_address = ai_result.buyer_address
+        bill.payment_mode = ai_result.payment_mode
+        bill.place_of_supply = ai_result.place_of_supply
+        bill.reverse_charge = ai_result.reverse_charge
+        bill.supplier_ref = ai_result.supplier_ref
+        bill.buyer_order_no = ai_result.buyer_order_no
+
+        # Use AI-extracted amounts directly
         bill.total_amount = ai_result.total_amount
 
         # Audit: Record AI classification
@@ -128,8 +137,6 @@ def process_bill(bill_id: int, db: Session = Depends(get_db)):
         # ============================================
         # STEP 3: GST Rule Engine — Determine tax treatment
         # ============================================
-        # This is DETERMINISTIC — same category always gets same rate
-        # The rule engine has FINAL AUTHORITY
         gst_decision = get_gst_details(ai_result.category, ai_result.sub_category)
 
         bill.final_category = ai_result.category
@@ -137,22 +144,48 @@ def process_bill(bill_id: int, db: Session = Depends(get_db)):
         bill.gst_rate = gst_decision.gst_rate
         bill.hsn_code = gst_decision.hsn_code
 
-        # If we have a total amount, calculate GST breakup
-        if bill.total_amount and bill.total_amount > 0:
-            # Estimate subtotal from total (reverse calculation)
-            # total = subtotal + gst, so subtotal = total / (1 + rate/100)
+        # Prefer AI-extracted financial amounts over estimates
+        if ai_result.subtotal > 0:
+            bill.subtotal = ai_result.subtotal
+        if ai_result.cgst_amount > 0:
+            bill.cgst = ai_result.cgst_amount
+        if ai_result.sgst_amount > 0:
+            bill.sgst = ai_result.sgst_amount
+        if ai_result.igst_amount > 0:
+            bill.igst = ai_result.igst_amount
+
+        # Fallback: only estimate if AI didn't give us the financial breakup
+        if bill.total_amount and bill.total_amount > 0 and (bill.cgst or 0) == 0 and (bill.sgst or 0) == 0 and (bill.igst or 0) == 0:
             if gst_decision.gst_rate > 0:
-                bill.subtotal = round(bill.total_amount / (1 + gst_decision.gst_rate / 100), 2)
-                gst_amount = bill.total_amount - bill.subtotal
-                # Default: intra-state → CGST + SGST split
+                bill.subtotal = bill.subtotal or round(bill.total_amount / (1 + gst_decision.gst_rate / 100), 2)
+                gst_amount = bill.total_amount - (bill.subtotal or 0)
                 bill.cgst = round(gst_amount / 2, 2)
                 bill.sgst = round(gst_amount / 2, 2)
                 bill.igst = 0.0
             else:
-                bill.subtotal = bill.total_amount
+                bill.subtotal = bill.subtotal or bill.total_amount
                 bill.cgst = 0.0
                 bill.sgst = 0.0
                 bill.igst = 0.0
+
+        # Save line items from AI extraction
+        from app.models import BillLineItem
+        if ai_result.line_items:
+            # Clear old line items first to allow reprocessing
+            bill.line_items = []
+            for item in ai_result.line_items:
+                li = BillLineItem(
+                    description=item.description,
+                    hsn_code=item.hsn_code,
+                    quantity=item.quantity,
+                    unit_price=item.unit_price,
+                    total_price=item.total,
+                    gst_rate=item.gst_percent,
+                    cgst=item.gst_amount / 2 if item.gst_percent > 0 else 0,
+                    sgst=item.gst_amount / 2 if item.gst_percent > 0 else 0,
+                    igst=0.0
+                )
+                bill.line_items.append(li)
 
         # Audit: Record GST decision
         db.add(AuditLog(
@@ -232,9 +265,13 @@ def process_bill(bill_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/api/bills/{bill_id}", response_model=BillResponse)
-def get_bill(bill_id: int, db: Session = Depends(get_db)):
-    """Get full details of a specific bill including all decisions and audit trail."""
-    bill = db.query(Bill).filter(Bill.id == bill_id).first()
+def get_bill(
+    bill_id: int,
+    db: Session = Depends(get_db),
+    current_company: Company = Depends(get_current_company),
+):
+    """Get full details of a specific bill. Only the owning company can view it."""
+    bill = db.query(Bill).filter(Bill.id == bill_id, Bill.company_id == current_company.id).first()
     if not bill:
         raise HTTPException(status_code=404, detail=f"Bill not found: {bill_id}")
     return BillResponse.model_validate(bill)
@@ -248,20 +285,27 @@ def list_bills(
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
+    current_company: Company = Depends(get_current_company),
 ):
     """
-    List bills with optional filters for status, month, and year.
-    Paginated — default 20 per page.
+    List this company's bills with optional filters.
+    Only returns bills belonging to the authenticated company.
     """
-    query = db.query(Bill)
+    query = db.query(Bill).filter(Bill.company_id == current_company.id)
 
     # Apply filters
     if status:
         query = query.filter(Bill.status == status)
     if month:
-        query = query.filter(extract("month", Bill.created_at) == month)
+        query = query.filter(
+            Bill.invoice_date.isnot(None),
+            extract("month", Bill.invoice_date) == month
+        )
     if year:
-        query = query.filter(extract("year", Bill.created_at) == year)
+        query = query.filter(
+            Bill.invoice_date.isnot(None),
+            extract("year", Bill.invoice_date) == year
+        )
 
     # Paginate
     total = query.count()
@@ -280,16 +324,18 @@ def get_monthly_summary(
     month: int = Query(..., ge=1, le=12),
     year: int = Query(..., ge=2020, le=2030),
     db: Session = Depends(get_db),
+    current_company: Company = Depends(get_current_company),
 ):
     """
-    Get aggregated monthly summary for CA reporting.
-
-    Returns: total bills, GST totals, ITC eligible/blocked, category breakdown.
-    This is the data a CA needs for GST filing.
+    Get aggregated monthly summary for the authenticated company.
+    Filters by invoice_date so March 2026 summary shows bills whose
+    invoice date is March 2026, regardless of upload date.
     """
     bills = db.query(Bill).filter(
-        extract("month", Bill.created_at) == month,
-        extract("year", Bill.created_at) == year,
+        Bill.company_id == current_company.id,
+        Bill.invoice_date.isnot(None),
+        extract("month", Bill.invoice_date) == month,
+        extract("year", Bill.invoice_date) == year,
     ).all()
 
     # Aggregate

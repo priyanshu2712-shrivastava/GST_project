@@ -2,6 +2,7 @@
 Upload API Endpoints
 ====================
 Handles file upload for bill images and PDFs.
+Requires authentication — files are scoped to the logged-in company.
 
 Endpoints:
 - POST /api/bills/upload      — Single file upload
@@ -11,7 +12,7 @@ DESIGN:
 - Files are saved to disk (not DB) — keeps DB lean
 - DB stores metadata + file path reference
 - Returns bill ID immediately — processing happens separately
-- This decoupling means upload is fast even if OCR/AI is slow
+- company_id is set from the JWT token — multi-tenant isolation
 """
 
 import os
@@ -24,8 +25,9 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.config import settings
-from app.models import Bill, BillStatus
+from app.models import Bill, BillStatus, Company
 from app.schemas import UploadResponse, BulkUploadResponse
+from app.auth import get_current_company
 
 router = APIRouter(prefix="/api/bills", tags=["Upload"])
 
@@ -47,8 +49,8 @@ def _validate_file(file: UploadFile) -> str:
     return ext
 
 
-async def _save_and_create_bill(file: UploadFile, db: Session) -> Bill:
-    """Save uploaded file to disk and create a DB record."""
+async def _save_and_create_bill(file: UploadFile, db: Session, company_id: int) -> Bill:
+    """Save uploaded file to disk and create a DB record scoped to company."""
     ext = _validate_file(file)
 
     # Generate unique filename to avoid collisions
@@ -63,8 +65,9 @@ async def _save_and_create_bill(file: UploadFile, db: Session) -> Bill:
     # Determine file type category
     file_type = "pdf" if ext == ".pdf" else "image"
 
-    # Create DB record with PENDING status
+    # Create DB record with PENDING status, scoped to this company
     bill = Bill(
+        company_id=company_id,
         file_name=file.filename,
         file_path=file_path,
         file_type=file_type,
@@ -83,15 +86,14 @@ async def _save_and_create_bill(file: UploadFile, db: Session) -> Bill:
 async def upload_bill(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
+    current_company: Company = Depends(get_current_company),
 ):
     """
     Upload a single bill image or PDF.
-
-    Returns the bill ID and PENDING status.
-    Call POST /api/bills/{id}/process to trigger OCR + AI + Rules pipeline.
+    Requires authentication — bill is scoped to the logged-in company.
     """
     try:
-        bill = await _save_and_create_bill(file, db)
+        bill = await _save_and_create_bill(file, db, current_company.id)
         return UploadResponse(
             id=bill.id,
             file_name=bill.file_name,
@@ -108,6 +110,7 @@ async def upload_bill(
 async def upload_bills_bulk(
     files: List[UploadFile] = File(...),
     db: Session = Depends(get_db),
+    current_company: Company = Depends(get_current_company),
 ):
     """
     Upload multiple bills at once.
@@ -118,7 +121,7 @@ async def upload_bills_bulk(
 
     for file in files:
         try:
-            bill = await _save_and_create_bill(file, db)
+            bill = await _save_and_create_bill(file, db, current_company.id)
             uploaded.append(UploadResponse(
                 id=bill.id,
                 file_name=bill.file_name,

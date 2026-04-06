@@ -1,0 +1,36 @@
+{
+  "vendor_name": "SHREE DHANWANTRI HERBALS PRIVATE LIMITED",
+   "vendor_gstin": "22ABPCS6525H2Z7",
+   "invoice_number": "BTE/25-26/0685",
+   "invoice_date": "2025-12-27",
+   "buyer_name": "SHREE DHANWANTRI LABORATORIES",
+   "buyer_gstin": "19AALFS9823N1Z8",
+   "buyer_address": "1244, CHITTARANJAN AVENUE, KOLKATA 700006, WEST BENGAL",
+   "payment_mode": null,
+   "place_of_supply": "WEST BENGAL",
+   "reverse_charge": false,
+   "supplier_ref": null,
+   "buyer_order_no": null,
+   "subtotal": 34842.06,
+   "cgst_amount": 0.0,
+   "sgst_amount": 0.0,
+   "igst_amount": 1742.10,
+   "total_amount": 36564.00,
+   "line_items": [
+       {
+           "description": "Aug-35",
+           "hsn_code": null,
+           "quantity": null,
+           "unit": null,
+           "unit_price": null,
+           "taxable_value": null,
+           "gst_percent": 5.00,
+           "gst_amount": null,
+           "total": null
+       }
+   ],
+   "category": "medical_supplies",
+   "sub_category": "pharmaceuticals",
+   "confidence": 0.8,
+   "reasoning": "The invoice is from a pharmaceutical company and the items listed are medicines, which suggests that the category is medical_supplies and the sub_category is pharmaceuticals."
+}

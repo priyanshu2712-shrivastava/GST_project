@@ -1,0 +1,93 @@
+```json
+{
+    "vendor_name": "SUNRISE ENTERPRISE",
+    "vendor_gstin": "07BGUPD3647XXXX",
+    "invoice_number": "Inv-5",
+    "invoice_date": null,
+    "buyer_name": "Rajiv Gupta",
+    "buyer_gstin": "HVBADAXX456",
+    "buyer_address": null,
+    "payment_mode": "UPI",
+    "place_of_supply": "Delhi",
+    "reverse_charge": true,
+    "supplier_ref": "S145",
+    "buyer_order_no": "B4599",
+    "subtotal": 32898.00,
+    "cgst_amount": 2563.92,
+    "sgst_amount": 2563.92,
+    "igst_amount": null,
+    "total_amount": 38026.00,
+    "line_items": [
+        {
+            "description": "Best Ball Pen",
+            "hsn_code": "1495",
+            "quantity": 2.0,
+            "unit": "Nos",
+            "unit_price": 10.00,
+            "taxable_value": 20.00,
+            "gst_percent": 12.0,
+            "gst_amount": 2.40,
+            "total": 22.40
+        },
+        {
+            "description": "Executive Diary",
+            "hsn_code": "1256",
+            "quantity": 8.0,
+            "unit": "Box",
+            "unit_price": 590.00,
+            "taxable_value": 4720.00,
+            "gst_percent": 12.0,
+            "gst_amount": 566.40,
+            "total": 5286.40
+        },
+        {
+            "description": "Leather Portfielo Folder",
+            "hsn_code": "1258",
+            "quantity": 2.0,
+            "unit": "Box",
+            "unit_price": 630.00,
+            "taxable_value": 1260.00,
+            "gst_percent": 12.0,
+            "gst_amount": 151.20,
+            "total": 1411.20
+        },
+        {
+            "description": "Wireless Mouse",
+            "hsn_code": "4589",
+            "quantity": 9.0,
+            "unit": "Nos",
+            "unit_price": 520.00,
+            "taxable_value": 4680.00,
+            "gst_percent": 17.0,
+            "gst_amount": 842.40,
+            "total": 5522.40
+        },
+        {
+            "description": "A4Document File",
+            "hsn_code": "4587",
+            "quantity": 5.0,
+            "unit": "Pkt",
+            "unit_price": 420.00,
+            "taxable_value": 2100.00,
+            "gst_percent": 12.0,
+            "gst_amount": 252.20,
+            "total": 2352.40
+        },
+        {
+            "description": "Power Bank 10000mAh",
+            "hsn_code": "1248",
+            "quantity": 9.0,
+            "unit": null,
+            "unit_price": null,
+            "taxable_value": null,
+            "gst_percent": null,
+            "gst_amount": null,
+            "total": null
+        }
+    ],
+    "category": "office_supplies",
+    "sub_category": "stationery_electronics",
+    "confidence": 1.0,
+    "reasoning": "The invoice is for a general medicine business, but the items purchased (pens, diaries, folders, mouse, document files, power bank) are typical office supplies and electronics used for administrative purposes, not directly related to medical supplies or treatment."
+}
+```

@@ -1,22 +1,24 @@
 "use client";
 
 import { useState } from "react";
-import { getExcelDownloadUrl, getTallyXmlDownloadUrl, getMonthlySummary } from "@/lib/api";
+import { getExcelBlob, getTallyXmlBlob, getMonthlySummary } from "@/lib/api";
 import type { MonthlySummary } from "@/lib/api";
 import { KPICard } from "@/components/UIComponents";
+import ProtectedRoute from "@/components/ProtectedRoute";
 
 const MONTHS = [
     "January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December",
 ];
 
-export default function ExportPage() {
+function ExportContent() {
     const now = new Date();
     const [month, setMonth] = useState(now.getMonth() + 1);
     const [year, setYear] = useState(now.getFullYear());
     const [summary, setSummary] = useState<MonthlySummary | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
+    const [downloading, setDownloading] = useState("");
 
     const fetchSummary = async () => {
         setLoading(true);
@@ -29,6 +31,27 @@ export default function ExportPage() {
             setSummary(null);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const downloadFile = async (type: "excel" | "tally") => {
+        setDownloading(type);
+        try {
+            const blob = type === "excel"
+                ? await getExcelBlob(month, year)
+                : await getTallyXmlBlob(month, year);
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = type === "excel"
+                ? `GST_Report_${MONTHS[month - 1]}_${year}.xlsx`
+                : `Tally_${MONTHS[month - 1]}_${year}.xml`;
+            a.click();
+            URL.revokeObjectURL(url);
+        } catch {
+            alert("Download failed. No data for this period?");
+        } finally {
+            setDownloading("");
         }
     };
 
@@ -155,38 +178,48 @@ export default function ExportPage() {
 
                     {/* Download Buttons */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <a
-                            href={getExcelDownloadUrl(month, year)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-5 hover:bg-emerald-500/10 transition-colors group"
+                        <button
+                            onClick={() => downloadFile("excel")}
+                            disabled={downloading === "excel"}
+                            className="flex items-center gap-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-5 hover:bg-emerald-500/10 transition-colors group disabled:opacity-50 text-left w-full"
                         >
                             <span className="text-3xl group-hover:scale-110 transition-transform">📊</span>
                             <div>
-                                <p className="text-emerald-400 font-semibold">Download Excel</p>
+                                <p className="text-emerald-400 font-semibold">
+                                    {downloading === "excel" ? "Downloading..." : "Download Excel"}
+                                </p>
                                 <p className="text-xs text-gray-500">
                                     3 sheets: Bill Details, GST Summary, ITC Summary
                                 </p>
                             </div>
-                        </a>
+                        </button>
 
-                        <a
-                            href={getTallyXmlDownloadUrl(month, year)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-4 rounded-xl border border-blue-500/20 bg-blue-500/5 p-5 hover:bg-blue-500/10 transition-colors group"
+                        <button
+                            onClick={() => downloadFile("tally")}
+                            disabled={downloading === "tally"}
+                            className="flex items-center gap-4 rounded-xl border border-blue-500/20 bg-blue-500/5 p-5 hover:bg-blue-500/10 transition-colors group disabled:opacity-50 text-left w-full"
                         >
                             <span className="text-3xl group-hover:scale-110 transition-transform">🏢</span>
                             <div>
-                                <p className="text-blue-400 font-semibold">Download Tally XML</p>
+                                <p className="text-blue-400 font-semibold">
+                                    {downloading === "tally" ? "Downloading..." : "Download Tally XML"}
+                                </p>
                                 <p className="text-xs text-gray-500">
                                     Purchase voucher entries for Tally import
                                 </p>
                             </div>
-                        </a>
+                        </button>
                     </div>
                 </>
             )}
         </div>
+    );
+}
+
+export default function ExportPage() {
+    return (
+        <ProtectedRoute>
+            <ExportContent />
+        </ProtectedRoute>
     );
 }

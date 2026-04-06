@@ -32,21 +32,54 @@ class BillStatusEnum(str, Enum):
 # AI Classification
 # --------------------
 
+class AILineItem(BaseModel):
+    description: Optional[str] = None
+    hsn_code: Optional[str] = None
+    quantity: float = Field(default=1.0)
+    unit: Optional[str] = None
+    unit_price: float = Field(default=0.0)
+    taxable_value: float = Field(default=0.0)
+    gst_percent: float = Field(default=0.0)
+    gst_amount: float = Field(default=0.0)
+    total: float = Field(default=0.0)
+
+
 class AIClassificationResult(BaseModel):
     """
-    Structured output from the LangChain classification chain.
-    AI fills these fields; it does NOT touch GST or ITC.
+    Structured output from the Gemini classification chain.
+    AI fills these fields; it does NOT touch GST or ITC rules.
     """
     category: str = Field(description="Expense category, e.g. 'office_supplies', 'raw_materials'")
     sub_category: str = Field(default="general", description="Sub-category for finer classification")
     confidence: float = Field(ge=0.0, le=1.0, description="How confident the AI is (0-1)")
     reasoning: str = Field(description="Why the AI chose this category")
-    
+
+    # Vendor / Invoice Info
     vendor_name: Optional[str] = None
     vendor_gstin: Optional[str] = None
     invoice_number: Optional[str] = None
     invoice_date: Optional[str] = None
+
+    # Buyer Info
+    buyer_name: Optional[str] = None
+    buyer_gstin: Optional[str] = None
+    buyer_address: Optional[str] = None
+    payment_mode: Optional[str] = None
+    place_of_supply: Optional[str] = None
+    reverse_charge: bool = Field(default=False)
+    supplier_ref: Optional[str] = None
+    buyer_order_no: Optional[str] = None
+
+    # Financial Amounts
+    subtotal: float = Field(default=0.0)
+    cgst_amount: float = Field(default=0.0)
+    sgst_amount: float = Field(default=0.0)
+    igst_amount: float = Field(default=0.0)
     total_amount: float = Field(default=0.0)
+
+    # Line Items
+    line_items: List[AILineItem] = Field(default_factory=list)
+
 
 
 # --------------------
@@ -198,3 +231,62 @@ class BulkUploadResponse(BaseModel):
     failed: List[dict]
     total_uploaded: int
     total_failed: int
+
+
+# --------------------
+# Company Registration & Auth
+# --------------------
+
+class CompanyRegisterRequest(BaseModel):
+    """Data submitted when registering a new company account."""
+    company_name: str = Field(..., description="Legal company name")
+    email: str = Field(..., description="Login email address")
+    password: str = Field(..., min_length=6, description="Password (min 6 chars)")
+    business_type: str = Field(..., description="e.g. 'medicine', 'trading', 'manufacturing'")
+    business_description: str = Field(..., description="Brief description of what the business does")
+    gstin: Optional[str] = Field(None, max_length=15, description="Company's own GSTIN (15 chars)")
+    address: Optional[str] = None
+    phone: Optional[str] = None
+
+
+class LoginRequest(BaseModel):
+    """Credentials for login."""
+    email: str
+    password: str
+
+
+class TokenResponse(BaseModel):
+    """Returned after successful register or login."""
+    access_token: str
+    token_type: str = "bearer"
+    company_id: int
+    company_name: str
+    email: str
+    business_type: str
+
+
+class CompanyRequest(BaseModel):
+    """Data submitted when updating company profile (auth required)."""
+    company_name: str = Field(..., description="Legal company name")
+    gstin: Optional[str] = Field(None, max_length=15, description="Company's own GSTIN (15 chars)")
+    business_type: str = Field(..., description="e.g. 'medicine', 'trading', 'manufacturing'")
+    business_description: str = Field(..., description="Brief description of what the business does")
+    address: Optional[str] = None
+    phone: Optional[str] = None
+
+
+class CompanyResponse(BaseModel):
+    """Returned when fetching registered company info."""
+    id: int
+    company_name: str
+    email: str
+    gstin: Optional[str] = None
+    business_type: str
+    business_description: str
+    address: Optional[str] = None
+    phone: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True

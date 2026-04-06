@@ -20,10 +20,15 @@ class Settings(BaseSettings):
     # SQLite for simplicity; swap to postgresql:// for production
     DATABASE_URL: str = "sqlite:///./gst_bills.db"
 
-    # --- Google Gemini API Key ---
-    # Get free key: https://aistudio.google.com/apikey
+    # --- Groq API Key ---
+    # Get free key: https://console.groq.com/keys
     # Required for AI classification. Without it, classifier returns "unclassified".
-    GOOGLE_API_KEY: str = ""
+    GROQ_API_KEY: str = ""
+
+    # --- Gemini API Key ---
+    # Get free key: https://aistudio.google.com/apikey
+    # Used as fallback OCR if Tesseract fails.
+    GEMINI_API_KEY: str = ""
 
     # --- AI Confidence Threshold ---
     # Bills classified below this score → flagged for manual review.
@@ -41,6 +46,11 @@ class Settings(BaseSettings):
     # --- File Paths ---
     UPLOAD_DIR: Path = Path("uploads")
     EXPORT_DIR: Path = Path("exports")
+
+    # --- JWT Auth ---
+    # IMPORTANT: Change this to a long random string before deploying!
+    # Generate one with: python -c "import secrets; print(secrets.token_hex(32))"
+    SECRET_KEY: str = "change-this-to-a-long-random-secret-key-before-production"
 
     class Config:
         env_file = ".env"

@@ -20,7 +20,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import engine, Base
-from app.api import upload, process, export
+from app.api import upload, process, export, company, auth
 
 # Create the FastAPI app
 app = FastAPI(
@@ -29,9 +29,9 @@ app = FastAPI(
         "Automated system for reading invoice images/PDFs, "
         "classifying expenses using AI (LangChain + Gemini), "
         "applying deterministic GST/ITC rules, and exporting "
-        "Excel reports and Tally XML."
+        "Excel reports and Tally XML. Multi-company with JWT auth."
     ),
-    version="1.0.0",
+    version="2.0.0",
 )
 
 # --- CORS Middleware ---
@@ -49,9 +49,11 @@ app.add_middleware(
 )
 
 # --- Include API Routers ---
+app.include_router(auth.router)
 app.include_router(upload.router)
 app.include_router(process.router)
 app.include_router(export.router)
+app.include_router(company.router)
 
 
 # --- Startup Event ---
@@ -80,7 +82,7 @@ def api_health():
     return {
         "status": "healthy",
         "database": "connected",
-        "ai_available": bool(settings.GOOGLE_API_KEY and settings.GOOGLE_API_KEY != "your_gemini_api_key_here"),
+        "ai_available": bool(settings.GROQ_API_KEY and settings.GROQ_API_KEY != "your_groq_api_key_here"),
         "business_type": settings.BUSINESS_TYPE,
         "confidence_threshold": settings.CONFIDENCE_THRESHOLD,
     }

@@ -5,8 +5,9 @@ import { listBills } from "@/lib/api";
 import type { Bill } from "@/lib/api";
 import { StatusBadge } from "@/components/UIComponents";
 import Link from "next/link";
+import ProtectedRoute from "@/components/ProtectedRoute";
 
-export default function BillsPage() {
+function BillsContent() {
     const [bills, setBills] = useState<Bill[]>([]);
     const [total, setTotal] = useState(0);
     const [page, setPage] = useState(1);
@@ -193,5 +194,13 @@ export default function BillsPage() {
                 </div>
             )}
         </div>
+    );
+}
+
+export default function BillsPage() {
+    return (
+        <ProtectedRoute>
+            <BillsContent />
+        </ProtectedRoute>
     );
 }

@@ -77,22 +77,21 @@ export default function BillDetailPage() {
                     </h1>
                     <p className="text-sm text-gray-500 mt-1">Bill #{bill.id}</p>
                 </div>
-                {bill.status === "pending" && (
-                    <button
-                        onClick={handleProcess}
-                        disabled={processing}
-                        className="px-5 py-2.5 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
-                    >
-                        {processing ? (
-                            <>
-                                <span className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-                                Processing...
-                            </>
-                        ) : (
-                            "🔄 Process Bill"
-                        )}
-                    </button>
-                )}
+                {/* ALWAYS show the process button so we can retry failures */}
+                <button
+                    onClick={handleProcess}
+                    disabled={processing}
+                    className="px-5 py-2.5 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
+                >
+                    {processing ? (
+                        <>
+                            <span className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                            Processing...
+                        </>
+                    ) : (
+                        bill.status === "pending" ? "🔄 Process Bill" : "🔄 Reprocess Bill"
+                    )}
+                </button>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
