@@ -1,18 +1,18 @@
 """
-AI Classifier (Gemini JSON Mode)
-==================================
+AI Classifier (Gemini via Google Generative Language API)
+==========================================================
 Takes OCR text + business context → returns expense category + ALL invoice fields.
 
 Uses google.generativeai with response_mime_type="application/json"
 so Gemini returns valid JSON every time — no markdown fences, no parse failures.
+
+API key: GOOGLE_GENERATIVE_API_KEY in .env
+         (restrict to: Generative Language API in Google Cloud Console)
 """
 
 import json
 import os
 import re
-
-from dotenv import load_dotenv
-load_dotenv()
 
 from app.config import settings
 from app.schemas import AIClassificationResult
@@ -22,39 +22,27 @@ from app.ai.prompts import CLASSIFICATION_PROMPT, FALLBACK_CLASSIFICATION
 def _extract_json(raw: str) -> dict:
     """
     Robustly extract a JSON object from a raw string.
-    Handles:
-      - Markdown fences (```json ... ```)
-      - Leading/trailing whitespace
-      - Slightly truncated responses (attempts recovery by closing open braces)
+    Handles markdown fences, whitespace, and slightly truncated responses.
     """
-    # Strip markdown fences if present
     text = re.sub(r'^```(?:json)?\s*', '', raw.strip(), flags=re.IGNORECASE)
-    text = re.sub(r'```\s*$', '', text.strip())
-    text = text.strip()
+    text = re.sub(r'```\s*$', '', text.strip()).strip()
 
-    # Try direct parse first
     try:
         return json.loads(text)
     except json.JSONDecodeError:
         pass
 
-    # Try to find the JSON object boundaries
     start = text.find('{')
     if start == -1:
         raise json.JSONDecodeError("No JSON object found", text, 0)
 
     text = text[start:]
-
-    # Try again after stripping prefix garbage
     try:
         return json.loads(text)
     except json.JSONDecodeError as e:
-        # Last resort: truncate at the error position and try to close open braces
         truncated = text[:e.pos] if e.pos > 0 else text
-        # Count unclosed braces/brackets and close them
         open_braces = truncated.count('{') - truncated.count('}')
         open_brackets = truncated.count('[') - truncated.count(']')
-        # Strip trailing partial token (e.g. incomplete string)
         truncated = re.sub(r',?\s*"[^"]*$', '', truncated)
         truncated = re.sub(r',\s*$', '', truncated)
         truncated += ']' * max(open_brackets, 0)
@@ -78,14 +66,10 @@ def _sf(val, default=0.0):
 
 def classify_expense(ocr_text: str) -> AIClassificationResult:
     """
-    Classify an expense from OCR text using Gemini AI.
+    Classify an expense from OCR text using Groq (fast LLM inference).
     Returns all invoice fields needed for the dashboard and Excel export.
     On failure: returns 'unclassified' — pipeline never stops.
     """
-
-    # Guard: No API key
-    if not settings.GROQ_API_KEY or settings.GROQ_API_KEY == "your_groq_api_key_here":
-        return AIClassificationResult(**FALLBACK_CLASSIFICATION)
 
     # Guard: Empty OCR text
     if not ocr_text or not ocr_text.strip() or ocr_text.startswith("[OCR Error]"):
@@ -94,15 +78,18 @@ def classify_expense(ocr_text: str) -> AIClassificationResult:
             reasoning="No valid OCR text to classify"
         )
 
+    # Guard: No API key
+    if not settings.GROQ_API_KEY:
+        print("[CLASSIFIER] GROQ_API_KEY not set — returning unclassified")
+        return AIClassificationResult(**FALLBACK_CLASSIFICATION)
+
     try:
         from groq import Groq
         import time
-        import re as _re
 
-        client = Groq(api_key=os.getenv("GROQ_API_KEY", settings.GROQ_API_KEY))
+        client = Groq(api_key=settings.GROQ_API_KEY)
 
-        # Prefer company settings from DB over .env defaults
-        # This allows company registration to take effect immediately
+        # Load company context from DB (overrides .env defaults)
         business_type = settings.BUSINESS_TYPE
         business_description = settings.BUSINESS_DESCRIPTION
         try:
@@ -120,13 +107,13 @@ def classify_expense(ocr_text: str) -> AIClassificationResult:
         prompt = CLASSIFICATION_PROMPT.format(
             business_type=business_type,
             business_description=business_description,
-            ocr_text=ocr_text[:3000]
+            ocr_text=ocr_text[:4000]
         )
 
         print("=" * 60)
-        print("[CLASSIFIER] Calling Groq API (llama-3.3-70b-versatile)...")
+        print("[CLASSIFIER] Calling Groq llama-3.3-70b-versatile...")
 
-        # Retry up to 3 times on 429 rate-limit errors
+        # Retry up to 3 times on rate-limit / quota errors
         raw = None
         last_err = None
         for attempt in range(3):
@@ -134,44 +121,47 @@ def classify_expense(ocr_text: str) -> AIClassificationResult:
                 response = client.chat.completions.create(
                     model="llama-3.3-70b-versatile",
                     messages=[
-                        {"role": "system", "content": "You are a precise JSON-only data extraction assistant."},
-                        {"role": "user", "content": prompt}
+                        {
+                            "role": "system",
+                            "content": "You are a GST invoice classifier. Always respond with valid JSON only. No markdown, no explanations outside the JSON."
+                        },
+                        {
+                            "role": "user",
+                            "content": prompt
+                        }
                     ],
                     temperature=0.1,
-                    max_tokens=8000,
-                    response_format={"type": "json_object"}
+                    max_tokens=2048,
+                    response_format={"type": "json_object"},
                 )
                 raw = response.choices[0].message.content.strip()
-                break  # Success
+                break
             except Exception as exc:
-                err_str = str(exc)
-                if "429" in err_str or "rate_limit" in err_str.lower():
-                    # Extract retry delay from error message if possible
-                    delay_match = _re.search(r'retry in (\d+(\.\d+)?)s', err_str)
-                    wait_sec = float(delay_match.group(1)) + 1 if delay_match else 10 * (attempt + 1)
-                    print(f"[CLASSIFIER] Rate limited (429). Waiting {wait_sec}s before retry {attempt+1}/3...")
+                err_str = str(exc).lower()
+                if ("429" in err_str or "quota" in err_str or "rate" in err_str) \
+                        and attempt < 2:
+                    wait_sec = 10 * (attempt + 1)
+                    print(f"[CLASSIFIER] Rate limited. Waiting {wait_sec}s (attempt {attempt+1}/3)...")
                     time.sleep(wait_sec)
                     last_err = exc
                 else:
-                    raise  # Non-quota error — re-raise immediately
-
-                    raise  # Non-quota error — re-raise immediately
+                    raise
 
         if raw is None:
-            raise RuntimeError(f"Gemini rate limit: all retries exhausted. Last error: {last_err}")
+            raise RuntimeError(f"All retries exhausted. Last error: {last_err}")
+
 
         print(f"[CLASSIFIER] Response received ({len(raw)} chars)")
         print(raw[:600])
         print("=" * 60)
 
-        # Save full response to file for inspection
+        # Save full response for debugging
         try:
             with open("last_api_output.txt", "w", encoding="utf-8") as f:
                 f.write(raw)
         except Exception:
             pass
 
-        # Use robust extractor to handle markdown fences / truncation
         result = _extract_json(raw)
 
         # Build line items list
@@ -189,6 +179,30 @@ def classify_expense(ocr_text: str) -> AIClassificationResult:
                     "gst_amount": _sf(item.get("gst_amount")),
                     "total": _sf(item.get("total")),
                 })
+
+        # ── Discount summing ────────────────────────────────────────────
+        # An invoice can have multiple discount / "less" rows.
+        # The AI returns them in a discounts[] array; we sum them here so
+        # `discount` is always the true aggregate deduction.
+        _subtotal_val  = _sf(result.get("subtotal"))
+        discounts_list = result.get("discounts") or []
+
+        if isinstance(discounts_list, list) and len(discounts_list) > 0:
+            _total_discount = round(
+                sum(_sf(d.get("amount")) for d in discounts_list if isinstance(d, dict)),
+                2
+            )
+            _labels = ", ".join(
+                str(d.get("label", "Discount")) for d in discounts_list if isinstance(d, dict)
+            )
+            print(f"[CLASSIFIER] Discounts ({len(discounts_list)}): {_labels} → total={_total_discount}")
+        else:
+            # Fallback: single discount field from AI
+            _total_discount = _sf(result.get("discount"))
+
+        # Always recompute net_taxable_amount authoritatively
+        _net_taxable = round(_subtotal_val - _total_discount, 2)
+        # ───────────────────────────────────────────────────────────────
 
         out = AIClassificationResult(
             # Classification
@@ -210,8 +224,10 @@ def classify_expense(ocr_text: str) -> AIClassificationResult:
             reverse_charge=bool(result.get("reverse_charge", False)),
             supplier_ref=result.get("supplier_ref"),
             buyer_order_no=result.get("buyer_order_no"),
-            # Amounts
+            # Amounts — discount is the SUM of all discount rows
             subtotal=_sf(result.get("subtotal")),
+            discount=_total_discount,
+            net_taxable_amount=_net_taxable,
             cgst_amount=_sf(result.get("cgst_amount")),
             sgst_amount=_sf(result.get("sgst_amount")),
             igst_amount=_sf(result.get("igst_amount")),

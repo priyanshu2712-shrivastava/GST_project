@@ -5,14 +5,17 @@ from app.database import engine
 from sqlalchemy import text
 
 columns = [
-    ("buyer_name",     "VARCHAR(255)"),
-    ("buyer_gstin",    "VARCHAR(15)"),
-    ("buyer_address",  "TEXT"),
-    ("payment_mode",   "VARCHAR(50)"),
-    ("place_of_supply","VARCHAR(100)"),
-    ("reverse_charge", "BOOLEAN DEFAULT FALSE"),
-    ("supplier_ref",   "VARCHAR(100)"),
-    ("buyer_order_no", "VARCHAR(100)"),
+    ("buyer_name",          "VARCHAR(255)"),
+    ("buyer_gstin",         "VARCHAR(15)"),
+    ("buyer_address",       "TEXT"),
+    ("payment_mode",        "VARCHAR(50)"),
+    ("place_of_supply",     "VARCHAR(100)"),
+    ("reverse_charge",      "BOOLEAN DEFAULT FALSE"),
+    ("supplier_ref",        "VARCHAR(100)"),
+    ("buyer_order_no",      "VARCHAR(100)"),
+    # Financial columns added in discount/net-taxable feature
+    ("discount",            "FLOAT DEFAULT 0.0"),
+    ("net_taxable_amount",  "FLOAT DEFAULT 0.0"),
 ]
 
 with engine.connect() as conn:

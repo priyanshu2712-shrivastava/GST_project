@@ -1,0 +1,92 @@
+GST BILL DIGITIZATION & AI CLASSIFICATION SYSTEM
+================================================
+Presentation Overview
+
+1. PROJECT INTRODUCTION
+-----------------------
+What it is: A multi-tenant SaaS platform that automates the digitization, classification, and compliance checking of GST invoices.
+
+The Problem: Manual data entry of mixed-format invoices is slow, error-prone, and makes GST compliance (like claiming Input Tax Credit) difficult to track.
+
+The Solution: An intelligent pipeline that ingests invoice images/PDFs, uses OCR and LLMs to extract structural and financial data, applies deterministic tax rules, and generates continuous compliance audit trails and accounting exports.
+
+
+2. SYSTEM ARCHITECTURE & DATA FLOW
+----------------------------------
+The core of the application is a robust, multi-stage processing pipeline.
+
+THE GOLDEN RULE: AI suggests context and extracts data, but deterministic Python rule engines make the final compliance decisions (GST rates, ITC eligibility).
+
+Step-by-step Flow:
+A. Document Ingestion & Multi-Tenant Scoping
+   - User logs in via JWT authentication (Tenant Isolation: Company A cannot see Company B's bills).
+   - User uploads an invoice (Image or PDF).
+   - The file is saved locally, and a 'PENDING' record is created in the database.
+
+B. OCR Extraction (Raw Data Capture)
+   - Step 1 (Primary - Local OCR): We first perform OCR using Tesseract OCR enhanced by a 9-step OpenCV pipeline (deskewing, denoising, thresholding) to extract raw text offline.
+   - Step 2 (Fallback - Cloud Vision): If Tesseract fails or image is too complex, the system falls back to Google Cloud Vision API for high-accuracy text detection.
+   - Step 3 (Last Resort): Uses multimodal LLM (Gemini Vision) for highly degraded documents.
+
+C. AI Classification & Extraction
+   - OCR text + Business Context (e.g., "Medical Trading") is processed through LangChain-style structured prompt templates.
+   - The prompt is routed to Groq's high-speed inference engine (Llama-3.3-70b).
+   - AI returns a strict JSON object with: Predicted category, extracted vendor/buyer details, parsed and aggregated financial breakdown (Subtotal, Discounts, Net Taxable), and line items.
+
+D. Deterministic Rule Engine (Compliance & Tax Logic)
+   - Duplicate Check: Validates against existing Invoice Number + Vendor GSTIN combinations.
+   - GST Engine: Uses AI category to apply correct GST Applicable flag, GST Rate, and HSN code.
+   - ITC Engine: Checks transaction against Sec 17(5) based on business type to determine ITC eligibility (Claimable vs Blocked).
+   - Risk Flagging: Generates warnings for low AI confidence, missing GSTINs, or duplicates.
+
+E. Audit Logging & Storage
+   - Every AI suggestion vs Rule Engine decision is logged into an immutable Audit Log for CA verification, then saved to PostgreSQL.
+
+F. Reporting & Export
+   - Data aggregates into Monthly Summaries. Clean data exports to Excel or Tally XML.
+
+
+3. TECHNOLOGY STACK
+-------------------
+Frontend (Client-Side):
+- Next.js (React), Tailwind CSS, TypeScript
+
+Backend (Server-Side):
+- FastAPI, SQLAlchemy (ORM), JWT Authentication
+
+Artificial Intelligence & Processing:
+- Orchestration & Prompting: LangChain-style structured prompt templates
+- LLM Engine: Groq API (llama-3.3-70b-versatile)
+- Primary OCR: Tesseract OCR
+- Fallback OCR: Google Cloud Vision API
+
+Infrastructure & Database:
+- Database: PostgreSQL (Neon)
+
+
+4. ENTITY-RELATIONSHIP (ER) MODEL
+---------------------------------
+Database Architecture:
+
+COMPANY Table:
+- id (PK), company_name, gstin, business_type, email, password_hash
+- Owns multiple Bills (Tenant Isolation).
+
+BILL Table:
+- id (PK), company_id (FK), vendor details, subtotal, discount, net_taxable, gst_amounts.
+- ai_category (Suggested by AI) vs final_category (Determined by Rule Engine).
+- Contains multiple Bill Line Items. Generates multiple Audit Logs.
+
+BILL_LINE_ITEM Table:
+- item descriptions, hsn_code, quantity, prices, taxes.
+
+AUDIT_LOG Table:
+- action (e.g., ai_classification), details (JSON snapshot), created_at.
+- Provides compliance traceability.
+
+
+5. KEY SELLING POINTS TO HIGHLIGHT
+----------------------------------
+- Separation of Concerns: We don't trust the AI with tax math; we only trust it to read the document. Deterministic rules do the math.
+- The Audit Log: A massive selling point for CAs. It proves why a particular tax decision was made at any specific timestamp.
+- SaaS Ready: The foreign key architecture natively supports complete data isolation for multiple companies.

@@ -35,7 +35,10 @@ export default function BillDetailPage() {
             const updated = await processBill(billId);
             setBill(updated);
         } catch (err: unknown) {
-            alert("Processing failed. Check the backend logs.");
+            const msg = err instanceof Error ? err.message : "Processing failed. Check the backend logs.";
+            alert(msg);
+            // Refresh bill to show any updated state (e.g. error/duplicate flags)
+            try { setBill(await getBill(billId)); } catch { /* ignore */ }
         } finally {
             setProcessing(false);
         }
@@ -62,6 +65,7 @@ export default function BillDetailPage() {
     }
 
     const riskFlags: RiskFlag[] = bill.risk_flags ? JSON.parse(bill.risk_flags) : [];
+    const duplicateFlag = riskFlags.find((f) => f.flag_type === "duplicate_invoice");
 
     return (
         <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-8">
@@ -93,6 +97,38 @@ export default function BillDetailPage() {
                     )}
                 </button>
             </div>
+
+            {/* ── DUPLICATE ENTRY BANNER ─────────────────────────────── */}
+            {duplicateFlag && (
+                <div className="mb-6 rounded-xl border border-red-500/40 bg-red-500/10 p-5">
+                    <div className="flex items-start gap-4">
+                        <div className="text-3xl select-none">🔴</div>
+                        <div className="flex-1">
+                            <h2 className="text-lg font-bold text-red-400 mb-1 flex items-center gap-2">
+                                ⚠️ DUPLICATE ENTRY — Not Counted in Reports
+                            </h2>
+                            <p className="text-sm text-red-300 mb-2">{duplicateFlag.message}</p>
+                            <p className="text-xs text-red-400/80">
+                                💡 {duplicateFlag.recommendation}
+                            </p>
+                            {"existing_bill_id" in duplicateFlag && (
+                                <Link
+                                    href={`/bills/${(duplicateFlag as RiskFlag & { existing_bill_id: number }).existing_bill_id}`}
+                                    className="inline-block mt-3 px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 text-xs font-medium transition-colors border border-red-500/30"
+                                >
+                                    View Original Bill →
+                                </Link>
+                            )}
+                        </div>
+                    </div>
+                    <div className="mt-4 pt-4 border-t border-red-500/20">
+                        <p className="text-xs text-gray-500">
+                            All extracted data shown below is for reference only.
+                            This bill has been excluded from monthly summaries and exports.
+                        </p>
+                    </div>
+                </div>
+            )}
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Left Column */}
@@ -132,10 +168,38 @@ export default function BillDetailPage() {
                             Financial Breakdown
                         </h2>
                         <dl className="space-y-3 text-sm">
+                            {/* Subtotal */}
                             <div className="flex justify-between">
                                 <dt className="text-gray-500">Subtotal</dt>
                                 <dd className="text-gray-200">₹{(bill.subtotal || 0).toLocaleString("en-IN")}</dd>
                             </div>
+
+                            {/* Discount — always visible */}
+                            <div className="flex justify-between">
+                                <dt className={bill.discount > 0 ? "text-orange-400" : "text-gray-600"}>
+                                    Discount
+                                </dt>
+                                <dd className={bill.discount > 0 ? "text-orange-400" : "text-gray-600"}>
+                                    {bill.discount > 0
+                                        ? `− ₹${bill.discount.toLocaleString("en-IN")}`
+                                        : "₹0"}
+                                </dd>
+                            </div>
+
+                            {/* Net Taxable Amount — always visible, = Subtotal − Discount */}
+                            <div className="flex justify-between border-t border-gray-800/60 pt-2">
+                                <dt className="text-gray-400 font-medium">Net Taxable Amount</dt>
+                                <dd className="text-gray-100 font-semibold">
+                                    ₹{
+                                        (
+                                            bill.net_taxable_amount != null && bill.net_taxable_amount !== 0
+                                                ? bill.net_taxable_amount
+                                                : (bill.subtotal || 0) - (bill.discount || 0)
+                                        ).toLocaleString("en-IN")
+                                    }
+                                </dd>
+                            </div>
+
                             <div className="flex justify-between">
                                 <dt className="text-gray-500">CGST</dt>
                                 <dd className="text-gray-200">₹{(bill.cgst || 0).toLocaleString("en-IN")}</dd>

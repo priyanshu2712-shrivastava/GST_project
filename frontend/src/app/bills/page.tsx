@@ -105,8 +105,13 @@ function BillsContent() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-800/50">
-                                {bills.map((bill) => (
-                                    <tr key={bill.id} className="hover:bg-gray-800/30 transition-colors">
+                                {bills.map((bill) => {
+                                    const flags: { flag_type: string }[] = bill.risk_flags
+                                        ? JSON.parse(bill.risk_flags)
+                                        : [];
+                                    const isDuplicate = flags.some((f) => f.flag_type === "duplicate_invoice");
+                                    return (
+                                    <tr key={bill.id} className={`hover:bg-gray-800/30 transition-colors ${isDuplicate ? "bg-red-500/5" : ""}`}>
                                         <td className="px-5 py-3 text-gray-500">#{bill.id}</td>
                                         <td className="px-5 py-3">
                                             <Link
@@ -142,12 +147,13 @@ function BillsContent() {
                                         <td className="px-5 py-3">
                                             {bill.ai_confidence != null ? (
                                                 <span
-                                                    className={`text-xs font-medium ${bill.ai_confidence >= 0.7
+                                                    className={`text-xs font-medium ${
+                                                        bill.ai_confidence >= 0.7
                                                             ? "text-emerald-400"
                                                             : bill.ai_confidence >= 0.4
                                                                 ? "text-yellow-400"
                                                                 : "text-red-400"
-                                                        }`}
+                                                    }`}
                                                 >
                                                     {(bill.ai_confidence * 100).toFixed(0)}%
                                                 </span>
@@ -156,13 +162,21 @@ function BillsContent() {
                                             )}
                                         </td>
                                         <td className="px-5 py-3">
-                                            <StatusBadge status={bill.status} />
+                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                <StatusBadge status={bill.status} />
+                                                {isDuplicate && (
+                                                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-500/20 text-red-400 border border-red-500/30">
+                                                        ⛔ Duplicate
+                                                    </span>
+                                                )}
+                                            </div>
                                         </td>
                                         <td className="px-5 py-3 text-gray-500 text-xs">
                                             {new Date(bill.created_at).toLocaleDateString("en-IN")}
                                         </td>
                                     </tr>
-                                ))}
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>

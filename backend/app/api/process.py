@@ -88,9 +88,6 @@ def process_bill(
         # ============================================
         # STEP 2: AI Classification — Suggest category
         # ============================================
-        # AI gets OCR text + business context from .env
-        # It returns: category, sub_category, confidence, reasoning
-        # It does NOT decide GST or ITC
         ai_result = classify_expense(ocr_text)
 
         bill.ai_category = ai_result.category
@@ -120,6 +117,59 @@ def process_bill(
 
         # Use AI-extracted amounts directly
         bill.total_amount = ai_result.total_amount
+        if ai_result.subtotal > 0:
+            bill.subtotal = ai_result.subtotal
+        if ai_result.discount > 0:
+            bill.discount = ai_result.discount
+        # net_taxable_amount = subtotal - discount
+        bill.net_taxable_amount = round((bill.subtotal or 0) - (bill.discount or 0), 2)
+        if ai_result.cgst_amount > 0:
+            bill.cgst = ai_result.cgst_amount
+        if ai_result.sgst_amount > 0:
+            bill.sgst = ai_result.sgst_amount
+        if ai_result.igst_amount > 0:
+            bill.igst = ai_result.igst_amount
+
+        # ── Duplicate Detection ──────────────────────────────────────
+        # Check AFTER all data is extracted & saved to the bill object
+        # so we can display it in the UI, but mark the bill as ERROR
+        # so it is excluded from reports/exports.
+        inv_no = ai_result.invoice_number
+        v_gstin = ai_result.vendor_gstin
+        if inv_no and v_gstin:
+            existing = db.query(Bill).filter(
+                Bill.company_id == current_company.id,
+                Bill.invoice_number == inv_no,
+                Bill.vendor_gstin == v_gstin,
+                Bill.id != bill.id,          # exclude this very bill
+            ).first()
+            if existing:
+                # Save the extracted data so the UI can display it,
+                # but mark as ERROR + duplicate flag so it is excluded
+                # from monthly summary and exports.
+                bill.status = BillStatus.ERROR
+                bill.risk_flags = json.dumps([{
+                    "flag_type": "duplicate_invoice",
+                    "severity": "high",
+                    "message": (
+                        f"Duplicate invoice detected. "
+                        f"Invoice #{inv_no} from {v_gstin} "
+                        f"already exists (Bill #{existing.id})."
+                    ),
+                    "recommendation": (
+                        f"Delete this bill and refer to "
+                        f"Bill #{existing.id}."
+                    ),
+                    "existing_bill_id": existing.id,
+                }])
+                bill.needs_manual_review = True
+                bill.updated_at = datetime.now(timezone.utc)
+                db.commit()
+                db.refresh(bill)
+                # Return 200 with all data — the duplicate flag is in
+                # risk_flags so the frontend can show a prominent banner.
+                return BillResponse.model_validate(bill)
+        # ─────────────────────────────────────────────────────────────
 
         # Audit: Record AI classification
         db.add(AuditLog(
@@ -144,17 +194,7 @@ def process_bill(
         bill.gst_rate = gst_decision.gst_rate
         bill.hsn_code = gst_decision.hsn_code
 
-        # Prefer AI-extracted financial amounts over estimates
-        if ai_result.subtotal > 0:
-            bill.subtotal = ai_result.subtotal
-        if ai_result.cgst_amount > 0:
-            bill.cgst = ai_result.cgst_amount
-        if ai_result.sgst_amount > 0:
-            bill.sgst = ai_result.sgst_amount
-        if ai_result.igst_amount > 0:
-            bill.igst = ai_result.igst_amount
-
-        # Fallback: only estimate if AI didn't give us the financial breakup
+        # Fallback: only estimate GST breakdown if AI didn't give us amounts
         if bill.total_amount and bill.total_amount > 0 and (bill.cgst or 0) == 0 and (bill.sgst or 0) == 0 and (bill.igst or 0) == 0:
             if gst_decision.gst_rate > 0:
                 bill.subtotal = bill.subtotal or round(bill.total_amount / (1 + gst_decision.gst_rate / 100), 2)
@@ -167,6 +207,9 @@ def process_bill(
                 bill.cgst = 0.0
                 bill.sgst = 0.0
                 bill.igst = 0.0
+
+        # Recalculate net_taxable_amount after any fallback changes
+        bill.net_taxable_amount = round((bill.subtotal or 0) - (bill.discount or 0), 2)
 
         # Save line items from AI extraction
         from app.models import BillLineItem
@@ -331,8 +374,11 @@ def get_monthly_summary(
     Filters by invoice_date so March 2026 summary shows bills whose
     invoice date is March 2026, regardless of upload date.
     """
+    # Exclude ERROR bills (includes duplicates) from summary so they
+    # don't distort financial totals.
     bills = db.query(Bill).filter(
         Bill.company_id == current_company.id,
+        Bill.status != BillStatus.ERROR,
         Bill.invoice_date.isnot(None),
         extract("month", Bill.invoice_date) == month,
         extract("year", Bill.invoice_date) == year,

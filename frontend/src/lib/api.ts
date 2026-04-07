@@ -23,6 +23,8 @@ export interface Bill {
   invoice_number: string | null;
   invoice_date: string | null;
   subtotal: number;
+  discount: number;
+  net_taxable_amount: number;
   cgst: number;
   sgst: number;
   igst: number;

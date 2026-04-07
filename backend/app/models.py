@@ -99,6 +99,8 @@ class Bill(Base):
 
     # --- Financials ---
     subtotal = Column(Float, default=0.0)
+    discount = Column(Float, default=0.0)         # Discount amount from invoice
+    net_taxable_amount = Column(Float, default=0.0)  # subtotal - discount
     cgst = Column(Float, default=0.0)
     sgst = Column(Float, default=0.0)
     igst = Column(Float, default=0.0)

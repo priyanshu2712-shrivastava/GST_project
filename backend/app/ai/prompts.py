@@ -21,6 +21,17 @@ RULES:
 - For dates: use YYYY-MM-DD format. Use null if not found.
 - reverse_charge = true if invoice says "Reverse Charge: YES", else false.
 
+DISCOUNT EXTRACTION RULES (very important):
+- An invoice may have MULTIPLE discount / deduction rows, for example:
+    "Trade Discount", "Cash Discount", "Less: Scheme", "Less: Rebate",
+    "Less: Discount", "Discount @10%", "Less", "Less Discount" etc.
+- Collect EVERY such row into the `discounts` array as an object with:
+    {{ "label": "<row label>", "amount": <numeric value> }}
+- Set `discount` = SUM of all amounts in the discounts array.
+- If there is only one discount row, put it in the array and sum (which is itself).
+- If there is no discount at all, set `discounts` = [] and `discount` = 0.0.
+- net_taxable_amount = subtotal - discount  (compute this from your values).
+
 INVOICE TEXT:
 {ocr_text}
 
@@ -38,6 +49,9 @@ Return a JSON object with EXACTLY these keys and types:
 - supplier_ref: string or null
 - buyer_order_no: string or null
 - subtotal: number
+- discounts: array of {{ "label": string, "amount": number }}
+- discount: number  (= sum of all discounts[] amounts)
+- net_taxable_amount: number  (= subtotal - discount)
 - cgst_amount: number
 - sgst_amount: number
 - igst_amount: number

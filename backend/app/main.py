@@ -82,7 +82,10 @@ def api_health():
     return {
         "status": "healthy",
         "database": "connected",
-        "ai_available": bool(settings.GROQ_API_KEY and settings.GROQ_API_KEY != "your_groq_api_key_here"),
+        "ocr_available": bool(settings.GOOGLE_CLOUD_VISION_API_KEY and
+                              settings.GOOGLE_CLOUD_VISION_API_KEY != "your_cloud_vision_api_key_here"),
+        "ai_available": bool(settings.GOOGLE_GENERATIVE_API_KEY and
+                             settings.GOOGLE_GENERATIVE_API_KEY != "your_generative_language_api_key_here"),
         "business_type": settings.BUSINESS_TYPE,
         "confidence_threshold": settings.CONFIDENCE_THRESHOLD,
     }

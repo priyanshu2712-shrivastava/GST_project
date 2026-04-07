@@ -4,42 +4,44 @@ Application Configuration
 Uses pydantic-settings to load config from .env file.
 All configurable values live here — never hardcode secrets or paths.
 
-WHY pydantic-settings?
-- Auto-validates types (e.g., CONFIDENCE_THRESHOLD must be float)
-- Loads from .env automatically
-- Single source of truth for all config
+API KEY SETUP (Google Cloud Console):
+  1. Go to console.cloud.google.com
+  2. Enable "Cloud Vision API" and "Generative Language API" in your project
+  3. Create 2 API keys under APIs & Services → Credentials:
+       Key 1: restrict to Cloud Vision API      → GOOGLE_CLOUD_VISION_API_KEY
+       Key 2: restrict to Generative Language API → GOOGLE_GENERATIVE_API_KEY
+  4. Paste both into .env
 """
 
 from pydantic_settings import BaseSettings
 from pathlib import Path
-import os
 
 
 class Settings(BaseSettings):
     # --- Database ---
-    # SQLite for simplicity; swap to postgresql:// for production
     DATABASE_URL: str = "sqlite:///./gst_bills.db"
 
-    # --- Groq API Key ---
-    # Get free key: https://console.groq.com/keys
-    # Required for AI classification. Without it, classifier returns "unclassified".
-    GROQ_API_KEY: str = ""
+    # --- Google Cloud Vision API ---
+    # PRIMARY OCR engine.
+    # Restrict this key to: Cloud Vision API
+    GOOGLE_CLOUD_VISION_API_KEY: str = ""
 
-    # --- Gemini API Key ---
-    # Get free key: https://aistudio.google.com/apikey
-    # Used as fallback OCR if Tesseract fails.
-    GEMINI_API_KEY: str = ""
+    # --- Google Generative Language API ---
+    # Used for AI classification (Gemini model).
+    # Restrict this key to: Generative Language API
+    GOOGLE_GENERATIVE_API_KEY: str = ""
+
+    # --- Groq API ---
+    # Fast LLM inference for AI classification.
+    # Get key at: console.groq.com
+    GROQ_API_KEY: str = ""
 
     # --- AI Confidence Threshold ---
     # Bills classified below this score → flagged for manual review.
-    # 0.7 = safe default — not too aggressive, catches uncertain cases.
     CONFIDENCE_THRESHOLD: float = 0.7
 
     # --- Business Context ---
-    # Tells the AI what kind of business we are. Same bill can mean
-    # different things for different businesses:
-    #   Medicine bill → pharma company = raw material
-    #   Medicine bill → garment shop = personal expense
+    # Tells the AI what kind of business this is.
     BUSINESS_TYPE: str = "trading"
     BUSINESS_DESCRIPTION: str = "A general trading company dealing in electronics and office supplies"
 
@@ -48,8 +50,6 @@ class Settings(BaseSettings):
     EXPORT_DIR: Path = Path("exports")
 
     # --- JWT Auth ---
-    # IMPORTANT: Change this to a long random string before deploying!
-    # Generate one with: python -c "import secrets; print(secrets.token_hex(32))"
     SECRET_KEY: str = "change-this-to-a-long-random-secret-key-before-production"
 
     class Config:

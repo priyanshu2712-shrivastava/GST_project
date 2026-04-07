@@ -9,6 +9,7 @@ Endpoints:
 
 DESIGN: Exports are generated on-demand, not pre-computed.
 This ensures they always reflect the latest data.
+ERROR-status bills (e.g. duplicates) are excluded from all exports.
 """
 
 import os
@@ -18,7 +19,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import extract
 
 from app.database import get_db
-from app.models import Bill, Company
+from app.models import Bill, BillStatus, Company
 from app.export.excel_export import generate_monthly_excel
 from app.export.tally_export import generate_tally_xml
 from app.auth import get_current_company
@@ -37,8 +38,10 @@ def export_excel(
     Generate and download a monthly Excel report for the authenticated company.
     Filters by invoice_date.
     """
+    # Exclude ERROR-status bills (e.g. duplicate invoices)
     bills = db.query(Bill).filter(
         Bill.company_id == current_company.id,
+        Bill.status != BillStatus.ERROR,
         Bill.invoice_date.isnot(None),
         extract("month", Bill.invoice_date) == month,
         extract("year", Bill.invoice_date) == year,
@@ -71,8 +74,10 @@ def export_tally_xml(
     """
     Generate and download Tally-compatible XML for the authenticated company.
     """
+    # Exclude ERROR-status bills (e.g. duplicate invoices)
     bills = db.query(Bill).filter(
         Bill.company_id == current_company.id,
+        Bill.status != BillStatus.ERROR,
         Bill.invoice_date.isnot(None),
         extract("month", Bill.invoice_date) == month,
         extract("year", Bill.invoice_date) == year,

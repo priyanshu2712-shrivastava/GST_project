@@ -72,6 +72,8 @@ class AIClassificationResult(BaseModel):
 
     # Financial Amounts
     subtotal: float = Field(default=0.0)
+    discount: float = Field(default=0.0)
+    net_taxable_amount: float = Field(default=0.0)
     cgst_amount: float = Field(default=0.0)
     sgst_amount: float = Field(default=0.0)
     igst_amount: float = Field(default=0.0)
@@ -151,6 +153,8 @@ class BillResponse(BaseModel):
     invoice_number: Optional[str] = None
     invoice_date: Optional[datetime] = None
     subtotal: float
+    discount: float = 0.0
+    net_taxable_amount: float = 0.0
     cgst: float
     sgst: float
     igst: float
