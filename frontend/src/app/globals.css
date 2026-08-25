@@ -2,25 +2,45 @@
 
 :root {
   --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-display: "Space Grotesk", var(--font-sans);
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
 }
 
 body {
   font-family: var(--font-sans);
 }
 
-/* Custom scrollbar for dark theme */
+/* Calm, femur-style smooth scrolling (disabled under reduced-motion below) */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Display face — used with restraint on headings only */
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+}
+
+/* Monospace tabular numerals — the ledger signature for every figure */
+.tabular {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* Custom scrollbar — light, warm, unobtrusive */
 ::-webkit-scrollbar {
   width: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: #111827;
+  background: #f5f0eb;
 }
 ::-webkit-scrollbar-thumb {
-  background: #374151;
+  background: #dcd6cd;
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #4b5563;
+  background: #c4bcb1;
 }
 
 /* Smooth transitions for interactive elements */
@@ -28,10 +48,10 @@ button,
 a,
 input,
 select {
-  transition: all 0.2s ease;
+  transition: all 0.18s ease;
 }
 
-/* Glow effect for cards */
+/* Subtle hover lift for cards */
 .card-glow {
   position: relative;
 }
@@ -40,7 +60,7 @@ select {
   position: absolute;
   inset: -1px;
   border-radius: inherit;
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(139, 92, 246, 0.1), transparent);
+  background: linear-gradient(135deg, rgba(10, 10, 10, 0.06), transparent 60%);
   z-index: -1;
   opacity: 0;
   transition: opacity 0.3s ease;
@@ -60,6 +80,18 @@ select {
 
 /* Upload dropzone styling */
 .dropzone-active {
-  border-color: #6366f1;
-  background-color: rgba(99, 102, 241, 0.05);
+  border-color: #0a0a0a;
+  background-color: rgba(240, 255, 68, 0.18);
+}
+
+/* Respect reduced-motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

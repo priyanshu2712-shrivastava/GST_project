@@ -4,8 +4,35 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { getBill, processBill } from "@/lib/api";
 import type { Bill, RiskFlag } from "@/lib/api";
-import { StatusBadge, SeverityBadge } from "@/components/UIComponents";
+import {
+    T,
+    Spinner,
+    PageHeader,
+    EmptyState,
+    StatusBadge,
+    SeverityBadge,
+} from "@/components/UIComponents";
 import Link from "next/link";
+import {
+    ArrowLeft,
+    ArrowRight,
+    Bot,
+    Check,
+    FileSearch,
+    History,
+    Lightbulb,
+    RefreshCw,
+    Scale,
+    TriangleAlert,
+    X,
+} from "lucide-react";
+
+/* ── Local class atoms for this page's key/value detail rows ──────────── */
+const row = "flex items-center justify-between gap-4 px-5 py-3";
+const dt = "text-[11px] uppercase tracking-wider text-[#888]";
+const dd = "text-sm text-[#0a0a0a]";
+const list = "divide-y divide-[#ececec]";
+const pill = "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ring-1";
 
 export default function BillDetailPage() {
     const params = useParams();
@@ -47,19 +74,26 @@ export default function BillDetailPage() {
     if (loading) {
         return (
             <div className="flex h-[80vh] items-center justify-center">
-                <div className="h-10 w-10 rounded-full border-4 border-indigo-500/30 border-t-indigo-500 animate-spin" />
+                <Spinner className="h-8 w-8" />
             </div>
         );
     }
 
     if (!bill) {
         return (
-            <div className="mx-auto max-w-3xl px-6 py-20 text-center">
-                <p className="text-4xl mb-4">🔍</p>
-                <h2 className="text-xl font-bold text-gray-300 mb-2">Bill Not Found</h2>
-                <Link href="/bills" className="text-indigo-400 hover:text-indigo-300">
-                    ← Back to Bills
-                </Link>
+            <div className={T.pageNarrow}>
+                <div className={T.card}>
+                    <EmptyState
+                        Icon={FileSearch}
+                        title="Bill Not Found"
+                        action={
+                            <Link href="/bills" className={`${T.link} inline-flex items-center gap-1.5 text-sm`}>
+                                <ArrowLeft className="h-4 w-4" strokeWidth={1.75} />
+                                Back to Bills
+                            </Link>
+                        }
+                    />
+                </div>
             </div>
         );
     }
@@ -68,61 +102,68 @@ export default function BillDetailPage() {
     const duplicateFlag = riskFlags.find((f) => f.flag_type === "duplicate_invoice");
 
     return (
-        <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-8">
+        <div className={T.page}>
             {/* Header */}
-            <div className="flex items-center justify-between mb-6">
-                <div>
-                    <Link href="/bills" className="text-sm text-gray-500 hover:text-gray-300 mb-2 block">
-                        ← Back to Bills
-                    </Link>
-                    <h1 className="text-2xl font-bold text-white flex items-center gap-3">
-                        {bill.file_name}
+            <Link href="/bills" className={`${T.link} mb-6 inline-flex items-center gap-1.5 text-sm`}>
+                <ArrowLeft className="h-4 w-4" strokeWidth={1.75} />
+                Back to Bills
+            </Link>
+
+            <PageHeader
+                title={bill.file_name}
+                subtitle={`Bill #${bill.id}`}
+                action={
+                    <div className="flex flex-wrap items-center gap-3">
                         <StatusBadge status={bill.status} />
-                    </h1>
-                    <p className="text-sm text-gray-500 mt-1">Bill #{bill.id}</p>
-                </div>
-                {/* ALWAYS show the process button so we can retry failures */}
-                <button
-                    onClick={handleProcess}
-                    disabled={processing}
-                    className="px-5 py-2.5 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
-                >
-                    {processing ? (
-                        <>
-                            <span className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-                            Processing...
-                        </>
-                    ) : (
-                        bill.status === "pending" ? "🔄 Process Bill" : "🔄 Reprocess Bill"
-                    )}
-                </button>
-            </div>
+                        {/* ALWAYS show the process button so we can retry failures */}
+                        <button
+                            onClick={handleProcess}
+                            disabled={processing}
+                            className={T.btnPrimary}
+                        >
+                            {processing ? (
+                                <>
+                                    <Spinner className="h-4 w-4" />
+                                    Processing...
+                                </>
+                            ) : (
+                                <>
+                                    <RefreshCw className="h-4 w-4" strokeWidth={1.75} />
+                                    {bill.status === "pending" ? "Process Bill" : "Reprocess Bill"}
+                                </>
+                            )}
+                        </button>
+                    </div>
+                }
+            />
 
             {/* ── DUPLICATE ENTRY BANNER ─────────────────────────────── */}
             {duplicateFlag && (
-                <div className="mb-6 rounded-xl border border-red-500/40 bg-red-500/10 p-5">
-                    <div className="flex items-start gap-4">
-                        <div className="text-3xl select-none">🔴</div>
+                <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-5">
+                    <div className="flex items-start gap-3">
+                        <TriangleAlert className="mt-0.5 h-5 w-5 shrink-0 text-red-600" strokeWidth={1.75} />
                         <div className="flex-1">
-                            <h2 className="text-lg font-bold text-red-400 mb-1 flex items-center gap-2">
-                                ⚠️ DUPLICATE ENTRY — Not Counted in Reports
+                            <h2 className="font-display text-base font-semibold tracking-tight text-red-700">
+                                DUPLICATE ENTRY — Not Counted in Reports
                             </h2>
-                            <p className="text-sm text-red-300 mb-2">{duplicateFlag.message}</p>
-                            <p className="text-xs text-red-400/80">
-                                💡 {duplicateFlag.recommendation}
+                            <p className="mt-1.5 text-sm text-red-700">{duplicateFlag.message}</p>
+                            <p className="mt-2 flex items-start gap-1.5 text-xs text-red-700/80">
+                                <Lightbulb className="mt-px h-4 w-4 shrink-0" strokeWidth={1.75} />
+                                {duplicateFlag.recommendation}
                             </p>
                             {"existing_bill_id" in duplicateFlag && (
                                 <Link
                                     href={`/bills/${(duplicateFlag as RiskFlag & { existing_bill_id: number }).existing_bill_id}`}
-                                    className="inline-block mt-3 px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 text-xs font-medium transition-colors border border-red-500/30"
+                                    className={`${T.btnGhost} mt-4`}
                                 >
-                                    View Original Bill →
+                                    View Original Bill
+                                    <ArrowRight className="h-4 w-4" strokeWidth={1.75} />
                                 </Link>
                             )}
                         </div>
                     </div>
-                    <div className="mt-4 pt-4 border-t border-red-500/20">
-                        <p className="text-xs text-gray-500">
+                    <div className="mt-4 border-t border-red-200 pt-4">
+                        <p className="text-xs text-[#555]">
                             All extracted data shown below is for reference only.
                             This bill has been excluded from monthly summaries and exports.
                         </p>
@@ -130,56 +171,56 @@ export default function BillDetailPage() {
                 </div>
             )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
                 {/* Left Column */}
                 <div className="space-y-6">
                     {/* Vendor & Invoice Info */}
-                    <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-5">
-                        <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">
-                            Invoice Details
-                        </h2>
-                        <dl className="space-y-3 text-sm">
-                            <div className="flex justify-between">
-                                <dt className="text-gray-500">Vendor</dt>
-                                <dd className="text-gray-200">{bill.vendor_name || "—"}</dd>
+                    <section className={T.card}>
+                        <div className={T.cardHeader}>
+                            <h2 className={T.h2}>Invoice Details</h2>
+                        </div>
+                        <dl className={list}>
+                            <div className={row}>
+                                <dt className={dt}>Vendor</dt>
+                                <dd className={`${dd} text-right`}>{bill.vendor_name || "—"}</dd>
                             </div>
-                            <div className="flex justify-between">
-                                <dt className="text-gray-500">GSTIN</dt>
-                                <dd className="text-gray-200 font-mono text-xs">{bill.vendor_gstin || "—"}</dd>
+                            <div className={row}>
+                                <dt className={dt}>GSTIN</dt>
+                                <dd className="tabular text-xs text-[#0a0a0a]">{bill.vendor_gstin || "—"}</dd>
                             </div>
-                            <div className="flex justify-between">
-                                <dt className="text-gray-500">Invoice No.</dt>
-                                <dd className="text-gray-200">{bill.invoice_number || "—"}</dd>
+                            <div className={row}>
+                                <dt className={dt}>Invoice No.</dt>
+                                <dd className={`${dd} tabular text-right`}>{bill.invoice_number || "—"}</dd>
                             </div>
-                            <div className="flex justify-between">
-                                <dt className="text-gray-500">Date</dt>
-                                <dd className="text-gray-200">
+                            <div className={row}>
+                                <dt className={dt}>Date</dt>
+                                <dd className={`${dd} tabular`}>
                                     {bill.invoice_date
                                         ? new Date(bill.invoice_date).toLocaleDateString("en-IN")
                                         : "—"}
                                 </dd>
                             </div>
                         </dl>
-                    </div>
+                    </section>
 
                     {/* Financial Breakdown */}
-                    <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-5">
-                        <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">
-                            Financial Breakdown
-                        </h2>
-                        <dl className="space-y-3 text-sm">
+                    <section className={T.card}>
+                        <div className={T.cardHeader}>
+                            <h2 className={T.h2}>Financial Breakdown</h2>
+                        </div>
+                        <dl className={list}>
                             {/* Subtotal */}
-                            <div className="flex justify-between">
-                                <dt className="text-gray-500">Subtotal</dt>
-                                <dd className="text-gray-200">₹{(bill.subtotal || 0).toLocaleString("en-IN")}</dd>
+                            <div className={row}>
+                                <dt className={dt}>Subtotal</dt>
+                                <dd className={`${dd} tabular`}>₹{(bill.subtotal || 0).toLocaleString("en-IN")}</dd>
                             </div>
 
                             {/* Discount — always visible */}
-                            <div className="flex justify-between">
-                                <dt className={bill.discount > 0 ? "text-orange-400" : "text-gray-600"}>
+                            <div className={row}>
+                                <dt className={bill.discount > 0 ? "text-[11px] uppercase tracking-wider text-amber-700" : dt}>
                                     Discount
                                 </dt>
-                                <dd className={bill.discount > 0 ? "text-orange-400" : "text-gray-600"}>
+                                <dd className={bill.discount > 0 ? "tabular text-sm text-amber-700" : "tabular text-sm text-[#888]"}>
                                     {bill.discount > 0
                                         ? `− ₹${bill.discount.toLocaleString("en-IN")}`
                                         : "₹0"}
@@ -187,9 +228,9 @@ export default function BillDetailPage() {
                             </div>
 
                             {/* Net Taxable Amount — always visible, = Subtotal − Discount */}
-                            <div className="flex justify-between border-t border-gray-800/60 pt-2">
-                                <dt className="text-gray-400 font-medium">Net Taxable Amount</dt>
-                                <dd className="text-gray-100 font-semibold">
+                            <div className={row}>
+                                <dt className="text-[11px] uppercase tracking-wider text-[#555]">Net Taxable Amount</dt>
+                                <dd className="tabular text-sm font-semibold text-[#0a0a0a]">
                                     ₹{
                                         (
                                             bill.net_taxable_amount != null && bill.net_taxable_amount !== 0
@@ -200,163 +241,211 @@ export default function BillDetailPage() {
                                 </dd>
                             </div>
 
-                            <div className="flex justify-between">
-                                <dt className="text-gray-500">CGST</dt>
-                                <dd className="text-gray-200">₹{(bill.cgst || 0).toLocaleString("en-IN")}</dd>
+                            <div className={row}>
+                                <dt className={dt}>CGST</dt>
+                                <dd className={`${dd} tabular`}>₹{(bill.cgst || 0).toLocaleString("en-IN")}</dd>
                             </div>
-                            <div className="flex justify-between">
-                                <dt className="text-gray-500">SGST</dt>
-                                <dd className="text-gray-200">₹{(bill.sgst || 0).toLocaleString("en-IN")}</dd>
+                            <div className={row}>
+                                <dt className={dt}>SGST</dt>
+                                <dd className={`${dd} tabular`}>₹{(bill.sgst || 0).toLocaleString("en-IN")}</dd>
                             </div>
-                            <div className="flex justify-between">
-                                <dt className="text-gray-500">IGST</dt>
-                                <dd className="text-gray-200">₹{(bill.igst || 0).toLocaleString("en-IN")}</dd>
+                            <div className={row}>
+                                <dt className={dt}>IGST</dt>
+                                <dd className={`${dd} tabular`}>₹{(bill.igst || 0).toLocaleString("en-IN")}</dd>
                             </div>
-                            <div className="flex justify-between border-t border-gray-800 pt-3">
-                                <dt className="text-gray-300 font-semibold">Total</dt>
-                                <dd className="text-white font-bold text-lg">
+                            <div className={`${row} bg-[#faf8f4]`}>
+                                <dt className="text-[11px] uppercase tracking-wider text-[#0a0a0a]">Total</dt>
+                                <dd className="tabular text-lg font-semibold text-[#0a0a0a]">
                                     ₹{(bill.total_amount || 0).toLocaleString("en-IN")}
                                 </dd>
                             </div>
                         </dl>
-                    </div>
+                    </section>
 
                     {/* OCR Text */}
                     {bill.raw_ocr_text && (
-                        <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-5">
-                            <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">
-                                OCR Extracted Text
-                            </h2>
-                            <pre className="text-xs text-gray-400 bg-gray-950 rounded-lg p-4 overflow-x-auto max-h-64 whitespace-pre-wrap">
-                                {bill.raw_ocr_text}
-                            </pre>
-                        </div>
+                        <section className={T.card}>
+                            <div className={T.cardHeader}>
+                                <h2 className={T.h2}>OCR Extracted Text</h2>
+                            </div>
+                            <div className="p-5">
+                                <pre className="max-h-64 overflow-x-auto whitespace-pre-wrap rounded-lg border border-[#e0e0e0] bg-[#faf8f4] p-4 text-xs leading-relaxed text-[#555]">
+                                    {bill.raw_ocr_text}
+                                </pre>
+                            </div>
+                        </section>
                     )}
                 </div>
 
                 {/* Right Column */}
                 <div className="space-y-6">
                     {/* AI Classification */}
-                    <div className="rounded-xl border border-indigo-500/20 bg-indigo-500/5 p-5">
-                        <h2 className="text-sm font-semibold text-indigo-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-                            🤖 AI Classification
-                        </h2>
-                        <dl className="space-y-3 text-sm">
-                            <div className="flex justify-between">
-                                <dt className="text-gray-500">Category</dt>
-                                <dd className="text-indigo-300 font-medium">{bill.ai_category || "—"}</dd>
+                    <section className={T.card}>
+                        <div className={T.cardHeader}>
+                            <h2 className={`${T.h2} flex items-center gap-2`}>
+                                <Bot className="h-4 w-4 text-[#888]" strokeWidth={1.75} />
+                                <span>AI Classification</span>
+                            </h2>
+                        </div>
+                        <dl className={list}>
+                            <div className={row}>
+                                <dt className={dt}>Category</dt>
+                                <dd className="text-sm font-medium text-[#0a0a0a]">{bill.ai_category || "—"}</dd>
                             </div>
-                            <div className="flex justify-between">
-                                <dt className="text-gray-500">Sub-category</dt>
-                                <dd className="text-gray-300">{bill.ai_sub_category || "—"}</dd>
+                            <div className={row}>
+                                <dt className={dt}>Sub-category</dt>
+                                <dd className={`${dd} text-right`}>{bill.ai_sub_category || "—"}</dd>
                             </div>
-                            <div className="flex justify-between">
-                                <dt className="text-gray-500">Confidence</dt>
-                                <dd className={`font-medium ${(bill.ai_confidence || 0) >= 0.7
-                                        ? "text-emerald-400"
-                                        : (bill.ai_confidence || 0) >= 0.4
-                                            ? "text-yellow-400"
-                                            : "text-red-400"
-                                    }`}>
-                                    {bill.ai_confidence != null
-                                        ? `${(bill.ai_confidence * 100).toFixed(0)}%`
-                                        : "—"}
+                            <div className={row}>
+                                <dt className={dt}>Confidence</dt>
+                                <dd>
+                                    <span
+                                        className={`${pill} tabular ${(bill.ai_confidence || 0) >= 0.7
+                                            ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
+                                            : (bill.ai_confidence || 0) >= 0.4
+                                                ? "bg-amber-50 text-amber-700 ring-amber-200"
+                                                : "bg-red-50 text-red-700 ring-red-200"
+                                            }`}
+                                    >
+                                        {bill.ai_confidence != null
+                                            ? `${(bill.ai_confidence * 100).toFixed(0)}%`
+                                            : "—"}
+                                    </span>
                                 </dd>
                             </div>
                             {bill.ai_reasoning && (
-                                <div>
-                                    <dt className="text-gray-500 mb-1">Reasoning</dt>
-                                    <dd className="text-gray-300 text-xs bg-gray-900/50 rounded-lg p-3">
+                                <div className="px-5 py-3">
+                                    <dt className={`${dt} mb-1.5`}>Reasoning</dt>
+                                    <dd className="rounded-lg border border-[#e0e0e0] bg-[#faf8f4] p-3 text-xs leading-relaxed text-[#555]">
                                         {bill.ai_reasoning}
                                     </dd>
                                 </div>
                             )}
                         </dl>
-                    </div>
+                    </section>
 
                     {/* Rule Engine Decisions */}
-                    <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-5">
-                        <h2 className="text-sm font-semibold text-emerald-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-                            ⚖️ Rule Engine Decisions (Final)
-                        </h2>
-                        <dl className="space-y-3 text-sm">
-                            <div className="flex justify-between">
-                                <dt className="text-gray-500">Final Category</dt>
-                                <dd className="text-emerald-300 font-medium">{bill.final_category || "—"}</dd>
+                    <section className={T.card}>
+                        <div className={T.cardHeader}>
+                            <h2 className={`${T.h2} flex items-center gap-2`}>
+                                <Scale className="h-4 w-4 text-[#888]" strokeWidth={1.75} />
+                                <span>Rule Engine Decisions (Final)</span>
+                            </h2>
+                        </div>
+                        <dl className={list}>
+                            <div className={row}>
+                                <dt className={dt}>Final Category</dt>
+                                <dd className="text-sm font-medium text-[#0a0a0a]">{bill.final_category || "—"}</dd>
                             </div>
-                            <div className="flex justify-between">
-                                <dt className="text-gray-500">GST Applicable</dt>
-                                <dd>{bill.gst_applicable ? "✅ Yes" : "❌ No"}</dd>
+                            <div className={row}>
+                                <dt className={dt}>GST Applicable</dt>
+                                <dd className={`${dd} inline-flex items-center gap-1.5`}>
+                                    {bill.gst_applicable ? (
+                                        <>
+                                            <Check className="h-4 w-4 text-emerald-600" strokeWidth={1.75} />
+                                            Yes
+                                        </>
+                                    ) : (
+                                        <>
+                                            <X className="h-4 w-4 text-red-600" strokeWidth={1.75} />
+                                            No
+                                        </>
+                                    )}
+                                </dd>
                             </div>
-                            <div className="flex justify-between">
-                                <dt className="text-gray-500">GST Rate</dt>
-                                <dd className="text-gray-200 font-medium">{bill.gst_rate ?? "—"}%</dd>
+                            <div className={row}>
+                                <dt className={dt}>GST Rate</dt>
+                                <dd className="tabular text-sm font-medium text-[#0a0a0a]">{bill.gst_rate ?? "—"}%</dd>
                             </div>
-                            <div className="flex justify-between">
-                                <dt className="text-gray-500">HSN Code</dt>
-                                <dd className="text-gray-200 font-mono">{bill.hsn_code || "—"}</dd>
+                            <div className={row}>
+                                <dt className={dt}>HSN Code</dt>
+                                <dd className="tabular text-sm text-[#0a0a0a]">{bill.hsn_code || "—"}</dd>
                             </div>
-                            <div className="flex justify-between">
-                                <dt className="text-gray-500">ITC Eligible</dt>
-                                <dd className={bill.itc_eligible ? "text-emerald-400 font-medium" : "text-red-400 font-medium"}>
-                                    {bill.itc_eligible ? "✅ Claimable" : "❌ Blocked"}
+                            <div className={row}>
+                                <dt className={dt}>ITC Eligible</dt>
+                                <dd>
+                                    <span
+                                        className={`${pill} ${bill.itc_eligible
+                                            ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
+                                            : "bg-red-50 text-red-700 ring-red-200"
+                                            }`}
+                                    >
+                                        {bill.itc_eligible ? (
+                                            <>
+                                                <Check className="h-4 w-4" strokeWidth={2} />
+                                                Claimable
+                                            </>
+                                        ) : (
+                                            <>
+                                                <X className="h-4 w-4" strokeWidth={2} />
+                                                Blocked
+                                            </>
+                                        )}
+                                    </span>
                                 </dd>
                             </div>
                             {bill.itc_blocked_reason && (
-                                <div>
-                                    <dt className="text-gray-500 mb-1">Block Reason</dt>
-                                    <dd className="text-red-300 text-xs bg-red-500/5 rounded-lg p-3 border border-red-500/10">
+                                <div className="px-5 py-3">
+                                    <dt className={`${dt} mb-1.5`}>Block Reason</dt>
+                                    <dd className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs leading-relaxed text-red-700">
                                         {bill.itc_blocked_reason}
                                     </dd>
                                 </div>
                             )}
                         </dl>
-                    </div>
+                    </section>
 
                     {/* Risk Flags */}
                     {riskFlags.length > 0 && (
-                        <div className="rounded-xl border border-orange-500/20 bg-orange-500/5 p-5">
-                            <h2 className="text-sm font-semibold text-orange-400 uppercase tracking-wider mb-4">
-                                ⚠️ Risk Flags ({riskFlags.length})
-                            </h2>
-                            <div className="space-y-3">
+                        <section className={T.card}>
+                            <div className={T.cardHeader}>
+                                <h2 className={`${T.h2} flex items-center gap-2`}>
+                                    <TriangleAlert className="h-4 w-4 text-amber-600" strokeWidth={1.75} />
+                                    <span>Risk Flags (<span className="tabular">{riskFlags.length}</span>)</span>
+                                </h2>
+                            </div>
+                            <div className={list}>
                                 {riskFlags.map((flag, i) => (
-                                    <div key={i} className="bg-gray-900/50 rounded-lg p-3">
-                                        <div className="flex items-center gap-2 mb-1">
+                                    <div key={i} className="px-5 py-4">
+                                        <div className="flex items-center gap-2">
                                             <SeverityBadge severity={flag.severity} />
-                                            <span className="text-sm text-gray-300">{flag.message}</span>
+                                            <span className="text-sm text-[#0a0a0a]">{flag.message}</span>
                                         </div>
-                                        <p className="text-xs text-gray-500 ml-1">
-                                            💡 {flag.recommendation}
+                                        <p className="mt-1.5 flex items-start gap-1.5 text-xs text-[#888]">
+                                            <Lightbulb className="mt-px h-4 w-4 shrink-0" strokeWidth={1.75} />
+                                            {flag.recommendation}
                                         </p>
                                     </div>
                                 ))}
                             </div>
-                        </div>
+                        </section>
                     )}
 
                     {/* Audit Trail */}
                     {bill.audit_logs.length > 0 && (
-                        <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-5">
-                            <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">
-                                📝 Audit Trail
-                            </h2>
-                            <div className="space-y-3">
+                        <section className={T.card}>
+                            <div className={T.cardHeader}>
+                                <h2 className={`${T.h2} flex items-center gap-2`}>
+                                    <History className="h-4 w-4 text-[#888]" strokeWidth={1.75} />
+                                    <span>Audit Trail</span>
+                                </h2>
+                            </div>
+                            <div className={list}>
                                 {bill.audit_logs.map((log) => (
-                                    <div key={log.id} className="flex items-start gap-3 text-xs">
-                                        <span className="text-gray-600 whitespace-nowrap">
+                                    <div key={log.id} className="flex items-start gap-3 px-5 py-3 text-xs">
+                                        <span className="tabular whitespace-nowrap text-[#888]">
                                             {new Date(log.created_at).toLocaleTimeString("en-IN")}
                                         </span>
                                         <div>
-                                            <span className="text-gray-300 font-medium">
+                                            <span className="font-medium text-[#0a0a0a]">
                                                 {log.action.replace(/_/g, " ")}
                                             </span>
-                                            <span className="text-gray-600 ml-1">by {log.performed_by}</span>
+                                            <span className="ml-1 text-[#888]">by {log.performed_by}</span>
                                         </div>
                                     </div>
                                 ))}
                             </div>
-                        </div>
+                        </section>
                     )}
                 </div>
             </div>

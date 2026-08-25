@@ -4,65 +4,97 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { isAuthenticated } from "@/lib/auth";
 import { useRouter } from "next/navigation";
+import {
+    ArrowRight,
+    Check,
+    ScanText,
+    Tags,
+    Scale,
+    FileSpreadsheet,
+    Building2,
+    ShieldCheck,
+    ReceiptText,
+    type LucideIcon,
+} from "lucide-react";
 
-const features = [
+const features: { Icon: LucideIcon; title: string; description: string }[] = [
     {
-        icon: "🔍",
-        title: "Smart OCR Extraction",
-        description: "AI-powered OCR reads bill images and PDFs, extracting vendor info, line items, amounts, and GST details automatically.",
-        color: "from-blue-500/20 to-cyan-500/20",
-        border: "border-blue-500/20",
+        Icon: ScanText,
+        title: "OCR extraction",
+        description:
+            "Reads images and PDFs, pulling vendor, GSTIN, invoice number, line items, and the CGST / SGST / IGST split.",
     },
     {
-        icon: "🤖",
-        title: "AI Expense Classification",
-        description: "LangChain + Gemini classifies each bill as raw material, office supply, travel, etc. — contextualized to YOUR business type.",
-        color: "from-violet-500/20 to-purple-500/20",
-        border: "border-violet-500/20",
+        Icon: Tags,
+        title: "Expense classification",
+        description:
+            "Categorises each bill against your business type — raw material, freight, office supply — with a confidence score you can override.",
     },
     {
-        icon: "⚖️",
-        title: "GST & ITC Rule Engine",
-        description: "Deterministic rule engine applies Section 17(5) to assess ITC eligibility and GST rates — AI suggests, rules decide.",
-        color: "from-emerald-500/20 to-teal-500/20",
-        border: "border-emerald-500/20",
+        Icon: Scale,
+        title: "Section 17(5) rule engine",
+        description:
+            "A deterministic engine decides ITC eligibility and GST rate. The model suggests; the rules decide.",
     },
     {
-        icon: "📊",
-        title: "Excel & Tally Export",
-        description: "Generate monthly GST reports as Excel (3-sheet summary) or Tally-compatible XML for direct import into Tally Prime.",
-        color: "from-orange-500/20 to-amber-500/20",
-        border: "border-orange-500/20",
+        Icon: FileSpreadsheet,
+        title: "Excel & Tally export",
+        description:
+            "Generate a 3-sheet monthly Excel workbook or Tally-ready XML for direct import into Tally Prime.",
     },
     {
-        icon: "🏢",
-        title: "Multi-Company Support",
-        description: "Each business has its own secure account. Bills, exports, and AI context are completely isolated per company.",
-        color: "from-pink-500/20 to-rose-500/20",
-        border: "border-pink-500/20",
+        Icon: Building2,
+        title: "Per-company isolation",
+        description:
+            "Every company has its own account. Bills, exports, and classification context stay fully separated.",
     },
     {
-        icon: "🔒",
-        title: "Compliance Audit Trail",
-        description: "Every AI decision, rule engine output, and override is logged. Full traceability for CA review and GST audits.",
-        color: "from-indigo-500/20 to-blue-500/20",
-        border: "border-indigo-500/20",
+        Icon: ShieldCheck,
+        title: "Audit trail",
+        description:
+            "Every extraction, rule decision, and manual override is logged and traceable for CA review and GST audits.",
     },
 ];
 
 const steps = [
-    { num: "01", title: "Register Your Company", desc: "Create an account with your business type and description. The AI uses this context to classify your bills accurately." },
-    { num: "02", title: "Upload Bills", desc: "Drag & drop invoice images or PDFs — single or bulk upload. Supports JPG, PNG, PDF, TIFF formats." },
-    { num: "03", title: "AI Processes Everything", desc: "OCR extracts text → AI classifies expense → Rule engine determines GST rate and ITC eligibility automatically." },
-    { num: "04", title: "Export & File", desc: "Download monthly Excel reports or Tally XML. Share with your CA, file GST returns with confidence." },
+    {
+        num: "01",
+        title: "Register your company",
+        desc: "Add your business type and a short description. This is the context used to classify your bills.",
+    },
+    {
+        num: "02",
+        title: "Upload bills",
+        desc: "Drag in invoice images or PDFs, one at a time or in bulk. JPG, PNG, PDF, and TIFF are supported.",
+    },
+    {
+        num: "03",
+        title: "Review the results",
+        desc: "OCR extracts the data, the bill is classified, and the rule engine sets GST rate and ITC eligibility.",
+    },
+    {
+        num: "04",
+        title: "Export & file",
+        desc: "Download the monthly Excel or Tally XML, hand it to your CA, and file with a clear audit trail.",
+    },
 ];
+
+const trust = [
+    "No credit card required",
+    "Section 17(5) ITC rules",
+    "Excel & Tally export",
+    "Per-company isolation",
+];
+
+/* ── Landing page — femur-style minimalism ──────────────────────────────
+   Palette: cream #f5f0eb · near-black #0a0a0a · muted #555 · hairline
+   #e0e0e0 · one lime accent #f0ff44 · dark inverse band #0a0a0a.        */
 
 export default function LandingPage() {
     const router = useRouter();
     const [checked, setChecked] = useState(false);
 
     useEffect(() => {
-        // If already logged in, redirect to dashboard
         if (isAuthenticated()) {
             router.replace("/dashboard");
         } else {
@@ -73,104 +105,108 @@ export default function LandingPage() {
     if (!checked) return null;
 
     return (
-        <div className="min-h-screen bg-gray-950 overflow-hidden">
-            {/* Hero */}
-            <section className="relative pt-20 pb-32 px-4">
-                {/* Background glow */}
-                <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-gradient-to-b from-indigo-600/20 via-violet-600/10 to-transparent rounded-full blur-3xl" />
+        <div className="min-h-screen bg-[#f5f0eb] text-[#0a0a0a]">
+            {/* Hero — text-forward, no motion */}
+            <section className="mx-auto max-w-6xl px-6 pb-24 pt-20 md:pb-32 md:pt-32">
+                <span className="inline-flex items-center gap-2.5 text-[12px] font-medium uppercase tracking-[0.2em] text-[#555]">
+                    <span className="h-1.5 w-1.5 rounded-full bg-[#f0ff44] ring-1 ring-[#0a0a0a]/15" />
+                    GST · purchase-bill automation
+                </span>
+
+                <h1 className="font-display mt-8 max-w-4xl text-5xl font-semibold leading-[1.02] tracking-tight text-[#0a0a0a] md:text-7xl">
+                    Turn purchase invoices into filed GST returns
+                </h1>
+
+                <p className="mt-6 max-w-xl text-lg leading-relaxed text-[#555]">
+                    Upload a bill and get the vendor, line items, GST split, and ITC eligibility
+                    extracted and checked against Section 17(5) — ready to export to Excel or Tally.
+                </p>
+
+                <div className="mt-10 flex flex-col items-start gap-3 sm:flex-row sm:items-center">
+                    <Link
+                        id="hero-register-btn"
+                        href="/register"
+                        className="group inline-flex items-center gap-2 rounded-full bg-[#f0ff44] px-6 py-3 text-sm font-semibold text-[#0a0a0a] transition-colors hover:bg-[#e7f800]"
+                    >
+                        Create free account
+                        <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                    </Link>
+                    <Link
+                        id="hero-login-btn"
+                        href="/login"
+                        className="inline-flex items-center rounded-full border border-[#0a0a0a]/20 px-6 py-3 text-sm font-semibold text-[#0a0a0a] transition-colors hover:border-[#0a0a0a] hover:bg-[#0a0a0a] hover:text-[#f5f0eb]"
+                    >
+                        Sign in
+                    </Link>
                 </div>
 
-                <div className="relative max-w-4xl mx-auto text-center">
-                    {/* Badge */}
-                    <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-indigo-500/30 bg-indigo-500/10 text-indigo-400 text-xs font-medium mb-8">
-                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
-                        AI-Powered GST Bill Digitization
-                    </div>
-
-                    <h1 className="text-5xl sm:text-6xl font-extrabold text-white leading-tight tracking-tight mb-6">
-                        GST Bill Processing
-                        <br />
-                        <span className="bg-gradient-to-r from-indigo-400 via-violet-400 to-pink-400 bg-clip-text text-transparent">
-                            for Every Business
+                <div className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-2 text-[13px] text-[#555]">
+                    {trust.map((t) => (
+                        <span key={t} className="inline-flex items-center gap-1.5">
+                            <Check className="h-3.5 w-3.5 text-[#0a0a0a]" strokeWidth={2.5} /> {t}
                         </span>
-                    </h1>
-
-                    <p className="text-xl text-gray-400 max-w-2xl mx-auto mb-10 leading-relaxed">
-                        Upload your purchase invoices, let AI extract and classify them, apply GST rules automatically, and export ready-to-file reports — all in one place.
-                    </p>
-
-                    <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                        <Link
-                            id="hero-register-btn"
-                            href="/register"
-                            className="px-8 py-4 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold text-base hover:from-indigo-600 hover:to-violet-700 transition-all shadow-xl shadow-indigo-500/30 hover:shadow-indigo-500/50 hover:-translate-y-0.5"
-                        >
-                            Register Free →
-                        </Link>
-                        <Link
-                            id="hero-login-btn"
-                            href="/login"
-                            className="px-8 py-4 rounded-xl border border-gray-700 text-gray-300 font-semibold text-base hover:border-gray-500 hover:text-white transition-all hover:-translate-y-0.5"
-                        >
-                            Sign In
-                        </Link>
-                    </div>
-
-                    {/* Stats */}
-                    <div className="flex flex-wrap items-center justify-center gap-8 mt-16 text-sm text-gray-500">
-                        <span className="flex items-center gap-2"><span className="text-emerald-400">✓</span> No credit card required</span>
-                        <span className="flex items-center gap-2"><span className="text-emerald-400">✓</span> Multi-company support</span>
-                        <span className="flex items-center gap-2"><span className="text-emerald-400">✓</span> Section 17(5) ITC rules</span>
-                        <span className="flex items-center gap-2"><span className="text-emerald-400">✓</span> Tally XML export</span>
-                    </div>
+                    ))}
                 </div>
             </section>
 
-            {/* Features */}
-            <section className="py-24 px-4">
-                <div className="max-w-6xl mx-auto">
-                    <div className="text-center mb-16">
-                        <h2 className="text-3xl font-bold text-white mb-4">Everything You Need for GST Compliance</h2>
-                        <p className="text-gray-400 max-w-xl mx-auto">From raw invoice image to filed GST return — automated and accurate.</p>
+            {/* What it does — quiet hairline grid, no cards, no motion */}
+            <section className="border-t border-[#e0e0e0]">
+                <div className="mx-auto max-w-6xl px-6 py-20 md:py-28">
+                    <div className="max-w-2xl">
+                        <p className="text-[12px] font-medium uppercase tracking-[0.2em] text-[#555]">
+                            What it does
+                        </p>
+                        <h2 className="font-display mt-4 text-3xl font-semibold tracking-tight text-[#0a0a0a] md:text-5xl">
+                            Built for GST compliance, not demos
+                        </h2>
+                        <p className="mt-4 text-[#555]">
+                            From a raw invoice image to a filed return — each step is explainable and audit-ready.
+                        </p>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {features.map((feature) => (
+                    <div className="mt-14 grid grid-cols-1 gap-x-12 sm:grid-cols-2">
+                        {features.map(({ Icon, title, description }) => (
                             <div
-                                key={feature.title}
-                                className={`rounded-2xl border ${feature.border} bg-gradient-to-br ${feature.color} p-6 hover:scale-[1.02] transition-transform duration-200`}
+                                key={title}
+                                className="border-t border-[#e0e0e0] py-8 first:border-t-0 sm:[&:nth-child(2)]:border-t-0"
                             >
-                                <div className="text-3xl mb-4">{feature.icon}</div>
-                                <h3 className="text-white font-semibold text-lg mb-2">{feature.title}</h3>
-                                <p className="text-gray-400 text-sm leading-relaxed">{feature.description}</p>
+                                <Icon className="h-5 w-5 text-[#000000]" strokeWidth={1.5} />
+                                <h3 className="font-display mt-4 text-lg font-semibold text-[#0a0a0a]">
+                                    {title}
+                                </h3>
+                                <p className="mt-2 text-sm leading-relaxed text-[#555]">
+                                    {description}
+                                </p>
                             </div>
                         ))}
                     </div>
                 </div>
             </section>
 
-            {/* How it works */}
-            <section className="py-24 px-4 bg-gray-900/30">
-                <div className="max-w-4xl mx-auto">
-                    <div className="text-center mb-16">
-                        <h2 className="text-3xl font-bold text-white mb-4">How It Works</h2>
-                        <p className="text-gray-400">Four simple steps from upload to compliance</p>
+            {/* How it works — the single dark inverse band for contrast */}
+            <section className="bg-[#0a0a0a] text-[#f5f0eb]">
+                <div className="mx-auto max-w-6xl px-6 py-20 md:py-28">
+                    <div className="max-w-2xl">
+                        <p className="text-[12px] font-medium uppercase tracking-[0.2em] text-[#9b9b9b]">
+                            How it works
+                        </p>
+                        <h2 className="font-display mt-4 text-3xl font-semibold tracking-tight text-[#f5f0eb] md:text-5xl">
+                            Four steps, upload to return
+                        </h2>
                     </div>
 
-                    <div className="space-y-6">
-                        {steps.map((step, i) => (
-                            <div key={step.num} className="flex gap-6 items-start group">
-                                <div className="flex-shrink-0 w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-violet-500/20 border border-indigo-500/30 flex items-center justify-center font-bold text-indigo-400 text-sm group-hover:from-indigo-500/30 group-hover:to-violet-500/30 transition-all">
-                                    {step.num}
-                                </div>
-                                <div className="pt-2">
-                                    <h3 className="text-white font-semibold text-lg mb-1">{step.title}</h3>
-                                    <p className="text-gray-400 text-sm leading-relaxed">{step.desc}</p>
-                                </div>
-                                {i < steps.length - 1 && (
-                                    <div className="hidden" />
-                                )}
+                    <div className="mt-14 grid gap-x-12 gap-y-10 sm:grid-cols-2">
+                        {steps.map((s) => (
+                            <div key={s.num} className="border-t border-[#1f1f1f] pt-6">
+                                <span className="tabular text-sm font-semibold text-[#f0ff44]">
+                                    {s.num}
+                                </span>
+                                <h3 className="font-display mt-3 text-lg font-semibold text-[#f5f0eb]">
+                                    {s.title}
+                                </h3>
+                                <p className="mt-2 text-sm leading-relaxed text-[#9b9b9b]">
+                                    {s.desc}
+                                </p>
                             </div>
                         ))}
                     </div>
@@ -178,45 +214,45 @@ export default function LandingPage() {
             </section>
 
             {/* CTA */}
-            <section className="py-24 px-4">
-                <div className="max-w-3xl mx-auto text-center">
-                    <div className="rounded-3xl border border-indigo-500/20 bg-gradient-to-br from-indigo-500/10 via-violet-500/5 to-transparent p-12">
-                        <h2 className="text-3xl font-bold text-white mb-4">
-                            Ready to Digitize Your Bills?
-                        </h2>
-                        <p className="text-gray-400 mb-8">
-                            Register your company in 60 seconds. Your bills are completely private and isolated from other companies.
-                        </p>
-                        <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                            <Link
-                                id="cta-register-btn"
-                                href="/register"
-                                className="px-8 py-4 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold hover:from-indigo-600 hover:to-violet-700 transition-all shadow-xl shadow-indigo-500/30"
-                            >
-                                Get Started Free
-                            </Link>
-                            <Link
-                                id="cta-login-btn"
-                                href="/login"
-                                className="px-8 py-4 rounded-xl border border-gray-700 text-gray-300 font-semibold hover:border-gray-500 hover:text-white transition-all"
-                            >
-                                I already have an account
-                            </Link>
-                        </div>
+            <section className="border-t border-[#e0e0e0]">
+                <div className="mx-auto max-w-3xl px-6 py-24 text-center md:py-32">
+                    <h2 className="font-display text-3xl font-semibold tracking-tight text-[#0a0a0a] md:text-5xl">
+                        Start with your next invoice
+                    </h2>
+                    <p className="mx-auto mt-5 max-w-xl text-[#555]">
+                        Register in about a minute. Your bills stay private and isolated from every other
+                        company on the platform.
+                    </p>
+                    <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
+                        <Link
+                            id="cta-register-btn"
+                            href="/register"
+                            className="group inline-flex items-center gap-2 rounded-full bg-[#f0ff44] px-6 py-3 text-sm font-semibold text-[#0a0a0a] transition-colors hover:bg-[#e7f800]"
+                        >
+                            Create free account
+                            <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                        </Link>
+                        <Link
+                            id="cta-login-btn"
+                            href="/login"
+                            className="inline-flex items-center rounded-full border border-[#0a0a0a]/20 px-6 py-3 text-sm font-semibold text-[#0a0a0a] transition-colors hover:border-[#0a0a0a]"
+                        >
+                            I already have an account
+                        </Link>
                     </div>
                 </div>
             </section>
 
             {/* Footer */}
-            <footer className="border-t border-gray-800/50 py-8 px-4">
-                <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-gray-600">
-                    <div className="flex items-center gap-3">
-                        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 text-white font-bold text-xs">
-                            GST
+            <footer className="border-t border-[#e0e0e0]">
+                <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-6 py-10 text-sm text-[#555] sm:flex-row">
+                    <div className="flex items-center gap-2.5">
+                        <div className="flex h-7 w-7 items-center justify-center rounded-md bg-[#0a0a0a] text-[#f5f0eb]">
+                            <ReceiptText className="h-4 w-4" />
                         </div>
-                        <span>BillDigitizer — AI-Powered GST Compliance</span>
+                        <span className="font-display font-semibold text-[#0a0a0a]">GST Ledger</span>
                     </div>
-                    <span>Built with FastAPI + Next.js + LangChain</span>
+                    <span>Purchase-bill automation and GST reporting for Indian businesses.</span>
                 </div>
             </footer>
         </div>

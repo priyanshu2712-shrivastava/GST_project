@@ -3,9 +3,10 @@
 import { useState, useCallback } from "react";
 import { uploadBill, uploadBillsBulk, processBill } from "@/lib/api";
 import type { UploadResponse } from "@/lib/api";
-import { StatusBadge } from "@/components/UIComponents";
+import { StatusBadge, T, Spinner } from "@/components/UIComponents";
 import Link from "next/link";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import { UploadCloud, FileText, Image as ImageIcon, ArrowRight } from "lucide-react";
 
 function UploadContent() {
     const [dragActive, setDragActive] = useState(false);
@@ -59,14 +60,10 @@ function UploadContent() {
     };
 
     return (
-        <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-8">
+        <div className={T.pageNarrow}>
             <div className="mb-8">
-                <h1 className="text-3xl font-bold bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
-                    Upload Bills
-                </h1>
-                <p className="text-gray-500 mt-1">
-                    Upload invoice images or PDFs for processing
-                </p>
+                <h1 className={T.h1}>Upload bills</h1>
+                <p className={T.sub}>Upload invoice images or PDFs for processing</p>
             </div>
 
             {/* Dropzone */}
@@ -77,9 +74,9 @@ function UploadContent() {
                 }}
                 onDragLeave={() => setDragActive(false)}
                 onDrop={onDrop}
-                className={`relative rounded-2xl border-2 border-dashed p-12 text-center transition-all cursor-pointer ${dragActive
-                        ? "border-indigo-500 bg-indigo-500/5"
-                        : "border-gray-700 hover:border-gray-600 bg-gray-900/30"
+                className={`relative cursor-pointer rounded-2xl border border-dashed p-14 text-center transition-colors ${dragActive
+                    ? "border-[#0a0a0a] bg-[#f0ff44]/20"
+                    : "border-[#d5cec4] bg-white hover:border-[#0a0a0a]/40"
                     }`}
                 onClick={() => document.getElementById("file-input")?.click()}
             >
@@ -94,16 +91,16 @@ function UploadContent() {
 
                 {uploading ? (
                     <div>
-                        <div className="h-10 w-10 rounded-full border-4 border-indigo-500/30 border-t-indigo-500 animate-spin mx-auto mb-4" />
-                        <p className="text-gray-300">Uploading...</p>
+                        <Spinner className="mx-auto mb-4 h-8 w-8" />
+                        <p className="text-sm text-[#555]">Uploading...</p>
                     </div>
                 ) : (
                     <>
-                        <p className="text-5xl mb-4">📁</p>
-                        <p className="text-lg font-medium text-gray-300 mb-2">
+                        <UploadCloud className="mx-auto h-8 w-8 text-[#b8b0a4]" strokeWidth={1.5} />
+                        <p className="font-display mt-4 text-base font-semibold text-[#0a0a0a]">
                             Drop files here or click to browse
                         </p>
-                        <p className="text-sm text-gray-500">
+                        <p className="mt-1.5 text-sm text-[#888]">
                             Supports JPG, PNG, PDF, BMP, TIFF — single or bulk upload
                         </p>
                     </>
@@ -112,52 +109,54 @@ function UploadContent() {
 
             {/* Upload Results */}
             {uploads.length > 0 && (
-                <div className="mt-8 rounded-xl border border-gray-800 bg-gray-900/50">
-                    <div className="p-5 border-b border-gray-800">
-                        <h2 className="text-lg font-semibold">Uploaded Files</h2>
+                <div className={`mt-8 ${T.card}`}>
+                    <div className={T.cardHeader}>
+                        <h2 className={T.h2}>Uploaded files</h2>
+                        <span className="tabular text-xs text-[#888]">{uploads.length}</span>
                     </div>
-                    <div className="divide-y divide-gray-800/50">
+                    <div className={T.tbody}>
                         {uploads.map((upload, idx) => (
                             <div
                                 key={`${upload.id}-${idx}`}
-                                className="flex items-center justify-between px-5 py-4"
+                                className="flex items-center justify-between gap-4 px-5 py-4"
                             >
-                                <div className="flex items-center gap-3">
-                                    <span className="text-xl">
-                                        {upload.file_name.endsWith(".pdf") ? "📄" : "🖼️"}
-                                    </span>
-                                    <div>
+                                <div className="flex min-w-0 items-center gap-3">
+                                    {upload.file_name.endsWith(".pdf") ? (
+                                        <FileText className="h-4 w-4 shrink-0 text-[#888]" strokeWidth={1.75} />
+                                    ) : (
+                                        <ImageIcon className="h-4 w-4 shrink-0 text-[#888]" strokeWidth={1.75} />
+                                    )}
+                                    <div className="min-w-0">
                                         <Link
                                             href={`/bills/${upload.id}`}
-                                            className="text-sm font-medium text-indigo-400 hover:text-indigo-300"
+                                            className={`block truncate text-sm ${T.link}`}
                                         >
                                             {upload.file_name}
                                         </Link>
-                                        <p className="text-xs text-gray-500">ID: {upload.id}</p>
+                                        <p className="tabular mt-0.5 text-xs text-[#888]">ID: {upload.id}</p>
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-3">
+                                <div className="flex shrink-0 items-center gap-3">
                                     <StatusBadge status={upload.status} />
                                     {upload.status === "pending" && !upload.processing && (
                                         <button
                                             onClick={() => handleProcess(upload.id, idx)}
-                                            className="px-3 py-1.5 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-medium transition-colors"
+                                            className={T.btnGhost}
                                         >
-                                            Process →
+                                            Process
+                                            <ArrowRight className="h-3.5 w-3.5" strokeWidth={1.75} />
                                         </button>
                                     )}
                                     {upload.processing && (
-                                        <span className="text-xs text-gray-400 flex items-center gap-1">
-                                            <span className="h-3 w-3 rounded-full border-2 border-indigo-500/30 border-t-indigo-500 animate-spin" />
+                                        <span className="flex items-center gap-1.5 text-xs text-[#555]">
+                                            <Spinner className="h-3 w-3" />
                                             Processing...
                                         </span>
                                     )}
                                     {upload.processed && (
-                                        <Link
-                                            href={`/bills/${upload.id}`}
-                                            className="px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 text-xs font-medium hover:bg-emerald-500/20 transition-colors"
-                                        >
-                                            View Results →
+                                        <Link href={`/bills/${upload.id}`} className={T.btnGhost}>
+                                            View results
+                                            <ArrowRight className="h-3.5 w-3.5" strokeWidth={1.75} />
                                         </Link>
                                     )}
                                 </div>

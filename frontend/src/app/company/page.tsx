@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { getCompany, updateCompany } from "@/lib/api";
 import type { Company } from "@/lib/api";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import { T, Spinner, PageHeader } from "@/components/UIComponents";
+import { AlertCircle, Building2, CheckCircle2, Info } from "lucide-react";
 
 const BUSINESS_TYPES = [
   "medicine",
@@ -78,45 +80,45 @@ function CompanyContent() {
     }
   };
 
-  const inputClass =
-    "w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-sm text-gray-200 placeholder-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/50 transition-colors";
-  const labelClass = "block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wider";
-
   return (
-    <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-8">
+    <div className={T.pageNarrow}>
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
-          Company Profile
-        </h1>
-        <p className="text-gray-500 mt-1">
-          Update your business details — AI uses these to classify bills accurately
-        </p>
-        {company && (
-          <p className="text-sm text-gray-500 mt-1">Logged in as: <span className="text-indigo-400">{company.email}</span></p>
-        )}
-      </div>
+      <PageHeader
+        title="Company Profile"
+        subtitle="Update your business details — AI uses these to classify bills accurately"
+        action={
+          company ? (
+            <p className="text-sm text-[#888]">
+              Logged in as: <span className="text-[#0a0a0a]">{company.email}</span>
+            </p>
+          ) : undefined
+        }
+      />
 
       {loading ? (
         <div className="flex items-center justify-center py-20">
-          <div className="h-10 w-10 rounded-full border-4 border-indigo-500/30 border-t-indigo-500 animate-spin" />
+          <Spinner className="h-8 w-8" />
         </div>
       ) : (
         <>
           {/* Current Profile Banner */}
           {company && (
-            <div className="mb-6 rounded-xl border border-indigo-500/20 bg-indigo-500/5 p-5">
+            <div className={`${T.card} mb-6 p-5`}>
               <div className="flex items-start gap-4">
-                <span className="text-3xl">🏢</span>
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#e0e0e0] bg-[#f5f0eb]">
+                  <Building2 className="h-5 w-5 text-[#0a0a0a]" strokeWidth={1.75} />
+                </span>
                 <div>
-                  <p className="font-semibold text-white">{company.company_name}</p>
-                  <p className="text-sm text-gray-400 mt-0.5">
-                    <span className="text-indigo-400">{company.business_type}</span>
+                  <p className="font-display font-semibold tracking-tight text-[#0a0a0a]">
+                    {company.company_name}
+                  </p>
+                  <p className="mt-0.5 text-sm text-[#555]">
+                    <span className="capitalize">{company.business_type}</span>
                     {company.gstin && (
-                      <> &bull; GSTIN: <span className="text-gray-300">{company.gstin}</span></>
+                      <> &bull; GSTIN: <span className="tabular text-[#0a0a0a]">{company.gstin}</span></>
                     )}
                   </p>
-                  <p className="text-xs text-gray-500 mt-1">{company.business_description}</p>
+                  <p className="mt-1.5 text-xs text-[#888]">{company.business_description}</p>
                 </div>
               </div>
             </div>
@@ -124,17 +126,17 @@ function CompanyContent() {
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-6">
-              <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-5">
-                Business Identity
-              </h2>
+            <div className={T.card}>
+              <div className={T.cardHeader}>
+                <h2 className={T.h2}>Business Identity</h2>
+              </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-5 p-5 sm:grid-cols-2">
                 <div className="sm:col-span-2">
-                  <label className={labelClass}>Company Name *</label>
+                  <label className={T.label}>Company Name *</label>
                   <input
                     required
-                    className={inputClass}
+                    className={T.input}
                     placeholder="e.g. Sharma Medical Stores Pvt Ltd"
                     value={form.company_name}
                     onChange={(e) => setForm({ ...form, company_name: e.target.value })}
@@ -142,9 +144,9 @@ function CompanyContent() {
                 </div>
 
                 <div>
-                  <label className={labelClass}>GSTIN</label>
+                  <label className={T.label}>GSTIN</label>
                   <input
-                    className={inputClass}
+                    className={`${T.input} tabular`}
                     placeholder="e.g. 27AAPFU0939F1ZV"
                     maxLength={15}
                     value={form.gstin}
@@ -153,10 +155,10 @@ function CompanyContent() {
                 </div>
 
                 <div>
-                  <label className={labelClass}>Business Type *</label>
+                  <label className={T.label}>Business Type *</label>
                   <select
                     required
-                    className={inputClass}
+                    className={T.input}
                     value={form.business_type}
                     onChange={(e) => setForm({ ...form, business_type: e.target.value })}
                   >
@@ -169,33 +171,33 @@ function CompanyContent() {
                 </div>
 
                 <div className="sm:col-span-2">
-                  <label className={labelClass}>Business Description *</label>
+                  <label className={T.label}>Business Description *</label>
                   <textarea
                     required
                     rows={3}
-                    className={inputClass}
+                    className={T.input}
                     placeholder="e.g. A general medicine company that purchases medicine in raw or processed form from other companies and sells to individuals"
                     value={form.business_description}
                     onChange={(e) => setForm({ ...form, business_description: e.target.value })}
                   />
-                  <p className="text-xs text-gray-600 mt-1">
+                  <p className={T.help}>
                     This description helps the AI understand what bills are relevant for your business.
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-6">
-              <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-5">
-                Contact Details
-              </h2>
+            <div className={T.card}>
+              <div className={T.cardHeader}>
+                <h2 className={T.h2}>Contact Details</h2>
+              </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-5 p-5 sm:grid-cols-2">
                 <div className="sm:col-span-2">
-                  <label className={labelClass}>Address</label>
+                  <label className={T.label}>Address</label>
                   <textarea
                     rows={2}
-                    className={inputClass}
+                    className={T.input}
                     placeholder="Registered office address"
                     value={form.address}
                     onChange={(e) => setForm({ ...form, address: e.target.value })}
@@ -203,10 +205,10 @@ function CompanyContent() {
                 </div>
 
                 <div>
-                  <label className={labelClass}>Phone</label>
+                  <label className={T.label}>Phone</label>
                   <input
                     type="tel"
-                    className={inputClass}
+                    className={`${T.input} tabular`}
                     placeholder="+91 98765 43210"
                     value={form.phone}
                     onChange={(e) => setForm({ ...form, phone: e.target.value })}
@@ -217,36 +219,42 @@ function CompanyContent() {
 
             {/* Messages */}
             {success && (
-              <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 text-sm text-emerald-400">
-                ✅ {success}
+              <div className="flex items-start gap-2.5 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">
+                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" strokeWidth={1.75} />
+                <span>{success}</span>
               </div>
             )}
             {error && (
-              <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-4 text-sm text-red-400">
-                ❌ {error}
+              <div className={`${T.errorBox} flex items-start gap-2.5`}>
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" strokeWidth={1.75} />
+                <span>{error}</span>
               </div>
             )}
 
             <button
               type="submit"
               disabled={saving}
-              className="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold text-sm hover:from-indigo-600 hover:to-violet-700 transition-all disabled:opacity-50 shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/40"
+              className={`${T.btnPrimary} w-full`}
             >
               {saving ? (
-                <span className="flex items-center justify-center gap-2">
-                  <span className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                <>
+                  <Spinner className="h-4 w-4" />
                   Saving...
-                </span>
+                </>
               ) : "Update Company Profile"}
             </button>
           </form>
 
           {/* AI Usage Note */}
-          <div className="mt-6 rounded-xl border border-gray-800 bg-gray-900/30 p-4">
-            <p className="text-xs text-gray-500">
-              <span className="text-gray-300 font-medium">ℹ️ How this is used:</span> When you
-              process a bill, the AI reads your <span className="text-indigo-400">Business Type</span>{" "}
-              and <span className="text-indigo-400">Business Description</span> to decide if an
+          <div className={`${T.card} mt-6 p-5`}>
+            <p className="text-xs leading-relaxed text-[#888]">
+              <span className="mr-1 inline-flex items-center gap-1.5 font-medium text-[#0a0a0a]">
+                <Info className="h-4 w-4 text-[#888]" strokeWidth={1.75} />
+                How this is used:
+              </span>{" "}
+              When you process a bill, the AI reads your{" "}
+              <span className="font-medium text-[#0a0a0a]">Business Type</span>{" "}
+              and <span className="font-medium text-[#0a0a0a]">Business Description</span> to decide if an
               expense is relevant. For example, a medicine bill would be &quot;raw material&quot; for a
               medicine company, but &quot;personal expense&quot; for a garment shop.
             </p>
