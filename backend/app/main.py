@@ -27,7 +27,7 @@ app = FastAPI(
     title="GST Bill Digitization & Classification API",
     description=(
         "Automated system for reading invoice images/PDFs, "
-        "classifying expenses using AI (LangChain + Gemini), "
+        "classifying expenses using AI (Claude Opus 5 via Agent Router), "
         "applying deterministic GST/ITC rules, and exporting "
         "Excel reports and Tally XML. Multi-company with JWT auth."
     ),
@@ -84,8 +84,7 @@ def api_health():
         "database": "connected",
         "ocr_available": bool(settings.GOOGLE_CLOUD_VISION_API_KEY and
                               settings.GOOGLE_CLOUD_VISION_API_KEY != "your_cloud_vision_api_key_here"),
-        "ai_available": bool(settings.GOOGLE_GENERATIVE_API_KEY and
-                             settings.GOOGLE_GENERATIVE_API_KEY != "your_generative_language_api_key_here"),
+        "ai_available": bool(settings.OPENROUTER_API_KEY or settings.GROQ_API_KEY),
         "business_type": settings.BUSINESS_TYPE,
         "confidence_threshold": settings.CONFIDENCE_THRESHOLD,
     }

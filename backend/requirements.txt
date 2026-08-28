@@ -13,7 +13,8 @@ pytesseract==0.3.13
 Pillow==11.1.0
 pdf2image==1.17.0
 
-# AI Classification (LangChain + Gemini)
+# AI Classification
+openai>=1.30.0
 langchain==0.3.14
 langchain-google-genai==2.0.8
 langchain-core==0.3.29

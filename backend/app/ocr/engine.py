@@ -232,11 +232,91 @@ def _extract_text_with_tesseract(image_path: str) -> Optional[str]:
 #  FALLBACK 2 — Groq Vision (llama-4-scout)
 # ══════════════════════════════════════════════════════════════════════════════
 
-def _extract_text_with_gemini_vision(image_path: str) -> Optional[str]:
+def _extract_text_with_claude_vision(image_path: str) -> Optional[str]:
     """
-    FALLBACK 2: Gemini Vision (gemini-1.5-flash).
-    Uses the same GOOGLE_GENERATIVE_API_KEY as the classifier.
-    Handles angled/blurry real-world photos that defeat Tesseract.
+    FALLBACK 2: Claude Vision via OpenRouter / Agent Router (direct HTTP).
+    Uses OPENROUTER_API_KEY + CLAUDE_MODEL from .env.
+    Uses requests directly — no openai SDK version issues.
+    Falls back silently to Gemini legacy if OPENROUTER_API_KEY is not set.
+    """
+    api_key = settings.OPENROUTER_API_KEY
+    if not api_key:
+        return _extract_text_with_gemini_vision_legacy(image_path)
+
+    try:
+        print(f"[OCR] Claude Vision fallback for: {image_path}")
+
+        # Read image and base64-encode it
+        with open(image_path, "rb") as f:
+            image_bytes = f.read()
+        b64_image = base64.b64encode(image_bytes).decode("utf-8")
+
+        # Detect MIME type
+        ext = Path(image_path).suffix.lower()
+        mime_map = {
+            ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+            ".png": "image/png", ".bmp": "image/bmp",
+            ".tiff": "image/tiff", ".tif": "image/tiff",
+            ".webp": "image/webp",
+        }
+        mime_type = mime_map.get(ext, "image/jpeg")
+
+        url = f"{settings.OPENROUTER_BASE_URL.rstrip('/')}/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://gst-bill-app",
+            "X-Title": "GST Bill Digitization",
+        }
+        payload = {
+            "model": settings.CLAUDE_MODEL,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:{mime_type};base64,{b64_image}"
+                            }
+                        },
+                        {
+                            "type": "text",
+                            "text": (
+                                "Extract ALL text from this invoice/bill image exactly as it appears. "
+                                "Include every detail: vendor name, GSTIN, invoice number, date, "
+                                "line items with quantities and amounts, HSN codes, tax details "
+                                "(CGST, SGST, IGST), subtotal, and total amount. "
+                                "Preserve the tabular structure as much as possible. "
+                                "Return ONLY the extracted text, nothing else."
+                            )
+                        }
+                    ]
+                }
+            ],
+            "max_tokens": 2048,
+        }
+
+        resp = requests.post(url, headers=headers, json=payload, timeout=60)
+        resp.raise_for_status()
+        data = resp.json()
+        text = data["choices"][0]["message"]["content"].strip()
+        if text and len(text) > 20:
+            print(f"[OCR] Claude Vision extracted {len(text)} characters ✓")
+            return text
+        return None
+
+    except Exception as e:
+        print(f"[OCR] Claude Vision fallback failed: {type(e).__name__}: {e}")
+        return None
+
+
+
+def _extract_text_with_gemini_vision_legacy(image_path: str) -> Optional[str]:
+    """
+    LEGACY FALLBACK: Gemini Vision (gemini-2.0-flash-lite).
+    Only used when OPENROUTER_API_KEY is not set.
+    Uses GOOGLE_GENERATIVE_API_KEY.
     """
     api_key = settings.GOOGLE_GENERATIVE_API_KEY
     if not api_key or api_key == "your_generative_language_api_key_here":
@@ -247,7 +327,7 @@ def _extract_text_with_gemini_vision(image_path: str) -> Optional[str]:
         import google.generativeai as genai
         from PIL import Image
 
-        print(f"[OCR] Gemini Vision fallback for: {image_path}")
+        print(f"[OCR] Gemini Vision legacy fallback for: {image_path}")
         genai.configure(api_key=api_key)
 
         img = Image.open(image_path)
@@ -268,13 +348,14 @@ def _extract_text_with_gemini_vision(image_path: str) -> Optional[str]:
         )
         text = response.text.strip()
         if text and len(text) > 20:
-            print(f"[OCR] Gemini Vision extracted {len(text)} characters")
+            print(f"[OCR] Gemini Vision (legacy) extracted {len(text)} characters")
             return text
         return None
 
     except Exception as e:
-        print(f"[OCR] Gemini Vision fallback failed: {type(e).__name__}: {e}")
+        print(f"[OCR] Gemini Vision legacy fallback failed: {type(e).__name__}: {e}")
         return None
+
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -303,8 +384,8 @@ def extract_text_from_image(image_path: str) -> str:
     if text:
         return text
 
-    # 3. Gemini Vision (last resort)
-    text = _extract_text_with_gemini_vision(image_path)
+    # 3. Claude Vision (last resort)
+    text = _extract_text_with_claude_vision(image_path)
     if text:
         return text
 
@@ -397,9 +478,9 @@ def extract_text_from_pdf(pdf_path: str) -> str:
         if not page_text:
             page_text = _extract_text_with_tesseract(tmp_path)
 
-        # Fallback to Gemini Vision
+        # Fallback to Claude Vision
         if not page_text:
-            page_text = _extract_text_with_gemini_vision(tmp_path)
+            page_text = _extract_text_with_claude_vision(tmp_path)
 
         if page_text:
             all_text.append(f"--- Page {page_num} ---\n{page_text}")

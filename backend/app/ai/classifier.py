@@ -1,13 +1,16 @@
 """
-AI Classifier (Gemini via Google Generative Language API)
-==========================================================
+AI Classifier
+=============
 Takes OCR text + business context → returns expense category + ALL invoice fields.
 
-Uses google.generativeai with response_mime_type="application/json"
-so Gemini returns valid JSON every time — no markdown fences, no parse failures.
+PRIMARY:  Claude Opus via OpenRouter / Agent Router
+          Set OPENROUTER_API_KEY in .env — uses the OpenAI-compatible API.
+          Model is controlled by CLAUDE_MODEL in .env (default: anthropic/claude-opus-4-5).
 
-API key: GOOGLE_GENERATIVE_API_KEY in .env
-         (restrict to: Generative Language API in Google Cloud Console)
+FALLBACK: Groq (llama-3.3-70b-versatile) if OPENROUTER_API_KEY is not set.
+          Set GROQ_API_KEY in .env.
+
+On failure: always returns 'unclassified' — pipeline never stops.
 """
 
 import json
@@ -66,7 +69,12 @@ def _sf(val, default=0.0):
 
 def classify_expense(ocr_text: str) -> AIClassificationResult:
     """
-    Classify an expense from OCR text using Groq (fast LLM inference).
+    Classify an expense from OCR text.
+
+    Priority:
+      1. Claude Opus via OpenRouter / Agent Router (OPENROUTER_API_KEY)
+      2. Groq llama-3.3-70b (GROQ_API_KEY) — legacy fallback
+
     Returns all invoice fields needed for the dashboard and Excel export.
     On failure: returns 'unclassified' — pipeline never stops.
     """
@@ -78,16 +86,13 @@ def classify_expense(ocr_text: str) -> AIClassificationResult:
             reasoning="No valid OCR text to classify"
         )
 
-    # Guard: No API key
-    if not settings.GROQ_API_KEY:
-        print("[CLASSIFIER] GROQ_API_KEY not set — returning unclassified")
+    # Guard: No AI key at all
+    if not settings.OPENROUTER_API_KEY and not settings.GROQ_API_KEY:
+        print("[CLASSIFIER] No AI API key set (OPENROUTER_API_KEY or GROQ_API_KEY) — returning unclassified")
         return AIClassificationResult(**FALLBACK_CLASSIFICATION)
 
     try:
-        from groq import Groq
         import time
-
-        client = Groq(api_key=settings.GROQ_API_KEY)
 
         # Load company context from DB (overrides .env defaults)
         business_type = settings.BUSINESS_TYPE
@@ -110,46 +115,99 @@ def classify_expense(ocr_text: str) -> AIClassificationResult:
             ocr_text=ocr_text[:4000]
         )
 
-        print("=" * 60)
-        print("[CLASSIFIER] Calling Groq llama-3.3-70b-versatile...")
+        messages = [
+            {
+                "role": "system",
+                "content": "You are a GST invoice classifier. Always respond with valid JSON only. No markdown, no explanations outside the JSON."
+            },
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ]
 
-        # Retry up to 3 times on rate-limit / quota errors
         raw = None
         last_err = None
-        for attempt in range(3):
-            try:
-                response = client.chat.completions.create(
-                    model="llama-3.3-70b-versatile",
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": "You are a GST invoice classifier. Always respond with valid JSON only. No markdown, no explanations outside the JSON."
-                        },
-                        {
-                            "role": "user",
-                            "content": prompt
-                        }
-                    ],
-                    temperature=0.1,
-                    max_tokens=2048,
-                    response_format={"type": "json_object"},
-                )
-                raw = response.choices[0].message.content.strip()
-                break
-            except Exception as exc:
-                err_str = str(exc).lower()
-                if ("429" in err_str or "quota" in err_str or "rate" in err_str) \
-                        and attempt < 2:
-                    wait_sec = 10 * (attempt + 1)
-                    print(f"[CLASSIFIER] Rate limited. Waiting {wait_sec}s (attempt {attempt+1}/3)...")
-                    time.sleep(wait_sec)
-                    last_err = exc
-                else:
+
+        # ── PRIMARY: Claude via OpenRouter (direct HTTP — no SDK version issues) ─
+        if settings.OPENROUTER_API_KEY:
+            import requests as _req
+
+            model_id = settings.CLAUDE_MODEL
+            api_key  = settings.OPENROUTER_API_KEY
+            print("=" * 60)
+            print(f"[CLASSIFIER] Calling Claude via OpenRouter ({model_id})...")
+            print(f"[CLASSIFIER] Key: {api_key[:8]}...{api_key[-4:]} (len={len(api_key)})")
+
+            url = f"{settings.OPENROUTER_BASE_URL.rstrip('/')}/chat/completions"
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+                "HTTP-Referer": "https://gst-bill-app",
+                "X-Title": "GST Bill Digitization",
+            }
+            payload = {
+                "model": model_id,
+                "messages": messages,
+                "temperature": 0.1,
+                "max_tokens": 2048,
+                "response_format": {"type": "json_object"},
+            }
+
+            for attempt in range(3):
+                try:
+                    resp = _req.post(url, headers=headers, json=payload, timeout=60)
+                    if resp.status_code == 429:
+                        wait_sec = 10 * (attempt + 1)
+                        print(f"[CLASSIFIER] Rate limited (Claude). Waiting {wait_sec}s (attempt {attempt+1}/3)...")
+                        time.sleep(wait_sec)
+                        continue
+                    resp.raise_for_status()
+                    data = resp.json()
+                    raw = data["choices"][0]["message"]["content"].strip()
+                    break
+                except _req.HTTPError as exc:
+                    print(f"[CLASSIFIER] HTTP error from OpenRouter: {exc.response.status_code} — {exc.response.text[:300]}")
                     raise
+                except Exception as exc:
+                    if attempt < 2:
+                        last_err = exc
+                    else:
+                        raise
+
+        # ── FALLBACK: Groq (legacy) ─────────────────────────────────────────
+        elif settings.GROQ_API_KEY:
+            from groq import Groq
+
+            print("=" * 60)
+            print("[CLASSIFIER] OPENROUTER_API_KEY not set — falling back to Groq llama-3.3-70b-versatile...")
+
+            client = Groq(api_key=settings.GROQ_API_KEY)
+
+            for attempt in range(3):
+                try:
+                    response = client.chat.completions.create(
+                        model="llama-3.3-70b-versatile",
+                        messages=messages,
+                        temperature=0.1,
+                        max_tokens=2048,
+                        response_format={"type": "json_object"},
+                    )
+                    raw = response.choices[0].message.content.strip()
+                    break
+                except Exception as exc:
+                    err_str = str(exc).lower()
+                    if ("429" in err_str or "quota" in err_str or "rate" in err_str) \
+                            and attempt < 2:
+                        wait_sec = 10 * (attempt + 1)
+                        print(f"[CLASSIFIER] Rate limited (Groq). Waiting {wait_sec}s (attempt {attempt+1}/3)...")
+                        time.sleep(wait_sec)
+                        last_err = exc
+                    else:
+                        raise
 
         if raw is None:
             raise RuntimeError(f"All retries exhausted. Last error: {last_err}")
-
 
         print(f"[CLASSIFIER] Response received ({len(raw)} chars)")
         print(raw[:600])
@@ -253,3 +311,4 @@ def classify_expense(ocr_text: str) -> AIClassificationResult:
             category="unclassified", sub_category="unknown", confidence=0.0,
             reasoning=f"AI classification failed: {str(e)}"
         )
+

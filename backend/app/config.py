@@ -4,13 +4,15 @@ Application Configuration
 Uses pydantic-settings to load config from .env file.
 All configurable values live here — never hardcode secrets or paths.
 
-API KEY SETUP (Google Cloud Console):
-  1. Go to console.cloud.google.com
-  2. Enable "Cloud Vision API" and "Generative Language API" in your project
-  3. Create 2 API keys under APIs & Services → Credentials:
-       Key 1: restrict to Cloud Vision API      → GOOGLE_CLOUD_VISION_API_KEY
-       Key 2: restrict to Generative Language API → GOOGLE_GENERATIVE_API_KEY
-  4. Paste both into .env
+API KEY SETUP:
+  1. Google Cloud Vision API (OCR):
+       Go to console.cloud.google.com → Create API Key
+       Restrict to: Cloud Vision API → GOOGLE_CLOUD_VISION_API_KEY
+
+  2. Claude Opus 5 via Agent Router (AI Classification):
+       Get your bearer token from your Agent Router dashboard
+       Paste it as OPENROUTER_API_KEY in .env
+       Set CLAUDE_MODEL to the exact Opus 5 model ID your router lists
 """
 
 from pydantic_settings import BaseSettings
@@ -27,14 +29,29 @@ class Settings(BaseSettings):
     GOOGLE_CLOUD_VISION_API_KEY: str = ""
 
     # --- Google Generative Language API ---
-    # Used for AI classification (Gemini model).
-    # Restrict this key to: Generative Language API
+    # (Legacy) Used as fallback vision OCR if OpenRouter is unavailable.
     GOOGLE_GENERATIVE_API_KEY: str = ""
 
     # --- Groq API ---
-    # Fast LLM inference for AI classification.
-    # Get key at: console.groq.com
+    # (Legacy) Fast LLM inference — kept as a fallback.
     GROQ_API_KEY: str = ""
+
+    # --- OpenRouter / Agent Router (Claude Opus) ---
+    # PRIMARY AI classifier. Paste your bearer token here.
+    # Get it from: openrouter.ai/keys  OR  your Agent Router dashboard
+    OPENROUTER_API_KEY: str = ""
+
+    # Claude model ID to use via the Agent Router.
+    # Set this in .env to the EXACT id your router dashboard lists for Opus 5.
+    # Common forms (copy whichever your router shows):
+    #   claude-opus-5              (bare id)
+    #   anthropic/claude-opus-5    (vendor-prefixed, OpenRouter-style)
+    CLAUDE_MODEL: str = "claude-opus-5"
+
+    # Base URL for the Agent Router (OpenAI-compatible chat completions).
+    # The code appends "/chat/completions" to this. Default works for
+    # agentrouter.org; override in .env if your router uses another host/path.
+    OPENROUTER_BASE_URL: str = "https://agentrouter.org/v1"
 
     # --- AI Confidence Threshold ---
     # Bills classified below this score → flagged for manual review.
